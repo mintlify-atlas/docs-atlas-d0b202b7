@@ -1,0 +1,382 @@
+---
+title: Installation
+description: Install HTVG for Rust, JavaScript/TypeScript (npm/WASM), or use the standalone CLI.
+---
+
+# Installation
+
+HTVG is available in multiple formats to suit your development environment. Choose the installation method that matches your project.
+
+<Tabs>
+  <Tab title="Node.js / WASM">
+    ## JavaScript/TypeScript via npm
+
+    Install HTVG as a dependency in your Node.js, browser, or edge runtime project.
+
+    <CodeGroup>
+    ```bash npm
+    npm install htvg
+    ```
+
+    ```bash yarn
+    yarn add htvg
+    ```
+
+    ```bash pnpm
+    pnpm add htvg
+    ```
+    </CodeGroup>
+
+    ### Browser Usage
+
+    The WASM module auto-fetches the `.wasm` file in browser environments:
+
+    ```javascript
+    import { init, compileDocument } from "htvg";
+
+    // Initialize once before any compilation
+    await init();
+
+    const result = compileDocument({
+      meta: { width: 400 },
+      content: {
+        type: "text",
+        content: "Hello from the browser!",
+        style: { fontSize: 24 }
+      }
+    });
+
+    console.log(result.svg);
+    ```
+
+    <Note>
+      The `init()` function must be called once before using any compilation functions. In browsers, it automatically fetches the WASM module.
+    </Note>
+
+    ### Node.js Usage
+
+    For Node.js, you need to explicitly load the WASM file:
+
+    ```javascript
+    import { init, compileDocument } from "htvg";
+    import fs from "node:fs";
+
+    // Load WASM from node_modules
+    const wasmBuffer = fs.readFileSync(
+      "node_modules/htvg/dist/wasm/htvg_bg.wasm"
+    );
+    await init(wasmBuffer);
+
+    const result = compileDocument({
+      meta: { width: 600 },
+      content: {
+        type: "flex",
+        style: { flexDirection: "column", gap: 12 },
+        children: [
+          { type: "text", content: "Title", style: { fontSize: 20, fontWeight: 700 } }
+        ]
+      }
+    });
+
+    console.log(result.svg);
+    ```
+
+    ### Cloudflare Workers
+
+    For Cloudflare Workers and other edge runtimes, import the WASM module directly:
+
+    ```javascript
+    import { init, compileDocument } from "htvg";
+    import wasmModule from "htvg/htvg.wasm";
+
+    await init(wasmModule);
+
+    export default {
+      async fetch(request) {
+        const result = compileDocument({
+          meta: { width: 800 },
+          content: {
+            type: "text",
+            content: "Generated at the edge!",
+            style: { fontSize: 32 }
+          }
+        });
+
+        return new Response(result.svg, {
+          headers: { "Content-Type": "image/svg+xml" }
+        });
+      }
+    };
+    ```
+
+    <Tip>
+      HTVG's WASM build is optimized for edge runtimes with minimal overhead and fast cold starts.
+    </Tip>
+
+  </Tab>
+
+  <Tab title="Rust">
+    ## Rust via Cargo
+
+    Add HTVG to your Rust project using Cargo:
+
+    ```bash
+    cargo add htvg
+    ```
+
+    Or manually add it to your `Cargo.toml`:
+
+    ```toml Cargo.toml
+    [dependencies]
+    htvg = "*"
+    ```
+
+    ### Basic Usage
+
+    ```rust
+    use htvg::{compile, CompileOptions};
+
+    fn main() {
+        let json = r###"{
+            "type": "flex",
+            "style": { "width": 400, "padding": 20, "backgroundColor": "#ffffff" },
+            "children": [
+                {
+                    "type": "text",
+                    "content": "Hello World",
+                    "style": { "fontSize": 24, "color": "#333333" }
+                }
+            ]
+        }"###;
+
+        let options = CompileOptions {
+            width: 400.0,
+            height: None,  // Auto-computed
+            font_size: 16.0,
+            font_family: None,
+            fonts: Vec::new(),
+        };
+
+        let result = compile(json, &options).unwrap();
+        println!("{}", result.svg);
+    }
+    ```
+
+    ### Using CompileOptions Default
+
+    ```rust
+    use htvg::{compile, CompileOptions};
+
+    let json = r###"{
+        "type": "box",
+        "style": { "width": 200, "height": 100, "backgroundColor": "#ff0000" }
+    }"###;
+
+    let options = CompileOptions::default();
+    let result = compile(json, &options).unwrap();
+
+    assert!(result.svg.contains("rect"));
+    assert!(result.svg.contains("#ff0000"));
+    ```
+
+    ### Compiling Documents
+
+    Use the `compile_document` function for self-contained HTVG documents:
+
+    ```rust
+    use htvg::compile_document;
+
+    let doc_json = r###"{
+        "meta": { "width": 800 },
+        "content": { 
+            "type": "flex", 
+            "children": [...] 
+        }
+    }"###;
+
+    let result = compile_document(doc_json).unwrap();
+    ```
+
+    <Warning>
+      Make sure your JSON is valid and follows the HTVG element schema. Invalid JSON or malformed elements will return a `CompileError` with kind `"parse_error"`.
+    </Warning>
+
+    ### Building from Source
+
+    To build HTVG from source:
+
+    <Steps>
+      <Step title="Clone the repository">
+        ```bash
+        git clone https://github.com/pavi2410/htvg
+        cd htvg
+        ```
+      </Step>
+      
+      <Step title="Check the build">
+        ```bash
+        cargo check
+        ```
+      </Step>
+      
+      <Step title="Run tests">
+        ```bash
+        cargo test
+        ```
+      </Step>
+      
+      <Step title="Build release">
+        ```bash
+        cargo build --release
+        ```
+      </Step>
+    </Steps>
+
+    ### Building WASM from Source
+
+    To build the WASM package:
+
+    ```bash
+    wasm-pack build --target web
+    ```
+
+  </Tab>
+
+  <Tab title="CLI">
+    ## Command Line Interface
+
+    The HTVG CLI allows you to compile JSON files to SVG from the command line.
+
+    ### Installation via Cargo
+
+    ```bash
+    cargo install htvg-cli
+    ```
+
+    <Note>
+      CLI installation instructions coming soon. The CLI is currently in development.
+    </Note>
+
+    ### Usage
+
+    Once installed, compile a JSON document to SVG:
+
+    ```bash
+    htvg input.json -o output.svg
+    ```
+
+    ### Example Workflow
+
+    <Steps>
+      <Step title="Create a JSON document">
+        Create a file called `hello.json`:
+
+        ```json hello.json
+        {
+          "meta": {
+            "width": 400
+          },
+          "content": {
+            "type": "flex",
+            "style": {
+              "width": 400,
+              "padding": 32,
+              "backgroundColor": "#ffffff",
+              "flexDirection": "column",
+              "gap": 12
+            },
+            "children": [
+              {
+                "type": "text",
+                "content": "Hello, HTVG!",
+                "style": {
+                  "fontSize": 32,
+                  "fontWeight": "bold",
+                  "color": "#1a1a1a"
+                }
+              }
+            ]
+          }
+        }
+        ```
+      </Step>
+
+      <Step title="Compile to SVG">
+        ```bash
+        htvg hello.json -o hello.svg
+        ```
+      </Step>
+
+      <Step title="View the output">
+        Open `hello.svg` in your browser or image viewer to see the result.
+      </Step>
+    </Steps>
+
+  </Tab>
+</Tabs>
+
+## Verify Installation
+
+After installation, verify HTVG is working correctly:
+
+<CodeGroup>
+```javascript JavaScript
+import { init, version } from "htvg";
+
+await init();
+console.log("HTVG version:", version());
+```
+
+```rust Rust
+use htvg::{compile, CompileOptions};
+
+let result = compile(
+    r#"{"type": "box", "style": {"width": 100, "height": 100}}"#,
+    &CompileOptions::default()
+);
+
+assert!(result.is_ok());
+println!("HTVG installed successfully!");
+```
+</CodeGroup>
+
+## System Requirements
+
+- **Rust**: Rust 1.70 or higher
+- **Node.js**: Node.js 18 or higher (for WASM usage)
+- **WASM**: WebAssembly support in target environment
+
+## Troubleshooting
+
+### WASM Module Not Found
+
+If you see "WASM module not found" errors in Node.js:
+
+1. Ensure you're passing the WASM buffer to `init()`
+2. Verify the path to `htvg_bg.wasm` is correct
+3. Check that the file exists in `node_modules/htvg/dist/wasm/`
+
+### Rust Compilation Errors
+
+If you encounter compilation errors:
+
+1. Update Rust to the latest stable version: `rustup update`
+2. Clear the build cache: `cargo clean`
+3. Rebuild: `cargo build`
+
+### Type Errors in TypeScript
+
+If you see TypeScript errors:
+
+1. Ensure you have the latest version: `npm update htvg`
+2. Check that your `tsconfig.json` includes `"module": "ESNext"` or `"NodeNext"`
+
+## Next Steps
+
+<Card
+  title="Quick Start Guide"
+  icon="rocket"
+  href="/quickstart"
+>
+  Now that HTVG is installed, follow our quick start guide to build your first project
+</Card>

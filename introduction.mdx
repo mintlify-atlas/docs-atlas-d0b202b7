@@ -1,0 +1,257 @@
+---
+title: Introduction
+description: HTVG is a static compiler that converts JSON element trees to pure SVG with correct multiline text layout, powered by Parley and Taffy.
+---
+
+# Welcome to HTVG
+
+HTVG (HyperText Vector Graphics) is a static compiler that transforms JSON element trees into pure, self-contained SVG with pixel-perfect text layout and full flexbox support.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get started in under 5 minutes with a working example
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install HTVG for Rust, Node.js, or use the CLI
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/rust/compile"
+  >
+    Explore the complete API documentation
+  </Card>
+  <Card
+    title="Examples"
+    icon="sparkles"
+    href="/guides/examples"
+  >
+    Browse real-world examples and use cases
+  </Card>
+</CardGroup>
+
+## Why HTVG?
+
+HTVG solves the challenge of generating complex, text-rich vector graphics programmatically. Unlike traditional SVG generation, HTVG provides:
+
+- **Correct Text Layout** - Powered by [Parley](https://github.com/linebender/parley) for proper text shaping, line breaking, and glyph positioning
+- **Flexbox Layout** - Full CSS Flexbox support via [Taffy](https://github.com/DioxusLabs/taffy) for responsive layouts
+- **Simple JSON API** - Familiar element tree structure matching JSX/VDOM patterns
+- **Pure SVG Output** - Static, self-contained SVG with no JavaScript dependencies
+- **WASM Compatible** - Runs in browsers, Node.js, Cloudflare Workers, and edge runtimes
+
+<Note>
+  HTVG is perfect for generating Open Graph images, social media cards, badges, charts, and any vector graphics that require complex text layout.
+</Note>
+
+## How It Works
+
+HTVG takes a JSON element tree and compiles it to SVG through a multi-stage pipeline:
+
+```
+JSON Element Tree
+       │
+       ▼
+┌──────────────────────┐
+│ 1. DESERIALIZE       │  serde_json → Element tree
+└──────────────────────┘
+       │
+       ▼
+┌──────────────────────┐
+│ 2. LAYOUT TREE       │  Map elements → Taffy tree
+└──────────────────────┘
+       │
+       ▼
+┌──────────────────────┐
+│ 3. LAYOUT COMPUTE    │  Taffy + Parley measure
+└──────────────────────┘
+       │
+       ▼
+┌──────────────────────┐
+│ 4. RENDER TREE       │  Final positions, boxes
+└──────────────────────┘
+       │
+       ▼
+┌──────────────────────┐
+│ 5. SVG GENERATION    │  Emit <rect>, <text>, etc.
+└──────────────────────┘
+```
+
+## Simple Example
+
+Here's a minimal example that demonstrates HTVG's core functionality:
+
+<CodeGroup>
+```javascript JavaScript/TypeScript
+import { init, compileDocument } from "htvg";
+
+await init();
+
+const result = compileDocument({
+  meta: { width: 400 },
+  content: {
+    type: "flex",
+    style: { 
+      width: 400, 
+      padding: 32, 
+      backgroundColor: "#ffffff",
+      flexDirection: "column",
+      gap: 12
+    },
+    children: [
+      { 
+        type: "text", 
+        content: "Hello, HTVG!", 
+        style: { fontSize: 32, fontWeight: "bold", color: "#1a1a1a" } 
+      },
+      { 
+        type: "text", 
+        content: "JSON to SVG, simple as that.", 
+        style: { fontSize: 16, color: "#666" } 
+      },
+    ],
+  },
+});
+
+console.log(result.svg);    // SVG string
+console.log(result.width);  // 400
+console.log(result.height); // auto-computed
+```
+
+```rust Rust
+use htvg::{compile, CompileOptions};
+
+let json = r###"{
+    "type": "flex",
+    "style": { "width": 400, "padding": 20, "backgroundColor": "#ffffff" },
+    "children": [
+        {
+            "type": "text",
+            "content": "Hello World",
+            "style": { "fontSize": 24, "color": "#333333" }
+        }
+    ]
+}"###;
+
+let options = CompileOptions {
+    width: 400.0,
+    height: None,  // Auto-computed
+    font_size: 16.0,
+    font_family: None,
+    fonts: Vec::new(),
+};
+
+let result = compile(json, &options).unwrap();
+println!("{}", result.svg);
+```
+
+```json JSON Document
+{
+  "meta": {
+    "width": 400
+  },
+  "content": {
+    "type": "flex",
+    "style": {
+      "width": 400,
+      "padding": 32,
+      "backgroundColor": "#ffffff",
+      "flexDirection": "column",
+      "gap": 12
+    },
+    "children": [
+      {
+        "type": "text",
+        "content": "Hello, HTVG!",
+        "style": {
+          "fontSize": 32,
+          "fontWeight": "bold",
+          "color": "#1a1a1a"
+        }
+      },
+      {
+        "type": "text",
+        "content": "This is a self-contained document rendered to SVG.",
+        "style": {
+          "fontSize": 16,
+          "color": "#666666"
+        }
+      }
+    ]
+  }
+}
+```
+</CodeGroup>
+
+## Core Features
+
+### Element Types
+
+HTVG provides four fundamental element types:
+
+<CardGroup cols={2}>
+  <Card title="box" icon="square">
+    Block container element for layout and visual composition
+  </Card>
+  <Card title="flex" icon="grip-lines">
+    Flexbox container with full CSS Flexbox support
+  </Card>
+  <Card title="text" icon="font">
+    Text leaf element with automatic line wrapping and shaping
+  </Card>
+  <Card title="image" icon="image">
+    Image element with intrinsic dimensions and object-fit
+  </Card>
+</CardGroup>
+
+### Style Properties
+
+HTVG supports a comprehensive set of CSS-like style properties:
+
+- **Layout**: `width`, `height`, `minWidth`, `maxWidth`, `minHeight`, `maxHeight`, `margin`, `padding`
+- **Flexbox**: `flexDirection`, `justifyContent`, `alignItems`, `gap`, `flexWrap`, `flexGrow`, `flexShrink`
+- **Visual**: `backgroundColor`, `borderWidth`, `borderColor`, `borderRadius`, `opacity`
+- **Typography**: `fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, `textAlign`, `color`, `letterSpacing`
+- **Image**: `objectFit` (`contain`, `cover`, `fill`)
+
+<Tip>
+  Dimensions accept both pixels (number) and percentages (string like `"50%"`). Spacing properties accept a single value or space-separated values for `"top right bottom left"`.
+</Tip>
+
+## Use Cases
+
+HTVG excels at generating:
+
+- Open Graph images and social media cards
+- Dynamic badges and status indicators  
+- Charts and data visualizations
+- Email signatures and letterheads
+- Programmatic diagrams and infographics
+- PDF-ready vector graphics
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Install HTVG"
+    icon="download"
+    href="/installation"
+  >
+    Choose your platform and get HTVG installed
+  </Card>
+  <Card
+    title="Quick Start Guide"
+    icon="play"
+    href="/quickstart"
+  >
+    Build your first HTVG project in minutes
+  </Card>
+</CardGroup>

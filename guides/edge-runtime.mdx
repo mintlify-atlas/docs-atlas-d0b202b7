@@ -1,0 +1,419 @@
+---
+title: Edge Runtime Deployment
+description: Deploy HTVG to Cloudflare Workers, Vercel Edge Functions, Deno Deploy, and other edge runtimes for fast, globally-distributed SVG rendering
+---
+
+HTVG's WASM-based architecture makes it perfect for edge runtimes. Run SVG compilation at the edge with sub-10ms latency worldwide.
+
+## Why Edge Runtimes?
+
+<CardGroup cols={2}>
+  <Card title="Global Distribution" icon="globe">
+    Run your code in data centers close to your users
+  </Card>
+  <Card title="Low Latency" icon="bolt">
+    WASM execution is extremely fast — typical compilation takes 5-10ms
+  </Card>
+  <Card title="No Cold Starts" icon="fire">
+    Edge workers stay warm, unlike traditional serverless functions
+  </Card>
+  <Card title="Cost Efficient" icon="dollar-sign">
+    Pay only for execution time, with generous free tiers
+  </Card>
+</CardGroup>
+
+## Cloudflare Workers
+
+Cloudflare Workers is the recommended edge runtime for HTVG, with native WASM module support.
+
+<Steps>
+  <Step title="Install dependencies">
+    ```bash
+    npm install htvg
+    npm install -D wrangler
+    ```
+  </Step>
+
+  <Step title="Configure wrangler.toml">
+    ```toml wrangler.toml
+    name = "htvg-worker"
+    main = "src/index.ts"
+    compatibility_date = "2024-01-01"
+
+    [build]
+    command = "npm run build"
+
+    # WASM module bundling is automatic with Wrangler 3+
+    ```
+  </Step>
+
+  <Step title="Create worker with WASM import">
+    ```typescript src/index.ts
+    import { init, compileDocument, type HtvgDocument } from "htvg";
+    // Cloudflare Workers handles .wasm imports natively
+    import wasmModule from "htvg/htvg.wasm";
+
+    export default {
+      async fetch(request: Request): Promise<Response> {
+        // Initialize WASM once per request (or cache globally)
+        await init(wasmModule);
+
+        const url = new URL(request.url);
+
+        if (url.pathname === "/api/svg" && request.method === "POST") {
+          try {
+            const doc: HtvgDocument = await request.json();
+            const result = compileDocument(doc);
+
+            return new Response(result.svg, {
+              headers: {
+                "Content-Type": "image/svg+xml",
+                "Cache-Control": "public, max-age=3600"
+              }
+            });
+          } catch (e) {
+            return Response.json(
+              { error: e instanceof Error ? e.message : "Unknown error" },
+              { status: 400 }
+            );
+          }
+        }
+
+        return new Response("HTVG Worker", { status: 200 });
+      }
+    };
+    ```
+  </Step>
+
+  <Step title="Deploy">
+    ```bash
+    npx wrangler deploy
+    ```
+  </Step>
+</Steps>
+
+<Note>
+Wrangler 3+ automatically bundles `.wasm` imports. For older versions, use `wasm_modules` in `wrangler.toml`.
+</Note>
+
+## Complete Cloudflare Worker Example
+
+Here's a production-ready worker with multiple endpoints:
+
+```typescript src/index.ts
+import { init, compileDocument, version, type HtvgDocument } from "htvg";
+import wasmModule from "htvg/htvg.wasm";
+
+let initialized = false;
+
+export default {
+  async fetch(request: Request): Promise<Response> {
+    // Initialize WASM once
+    if (!initialized) {
+      await init(wasmModule);
+      initialized = true;
+    }
+
+    const url = new URL(request.url);
+
+    // POST /api/compile — compile a document
+    if (url.pathname === "/api/compile" && request.method === "POST") {
+      try {
+        const doc: HtvgDocument = await request.json();
+        const result = compileDocument(doc);
+        return Response.json({
+          svg: result.svg,
+          width: result.width,
+          height: result.height,
+          warnings: result.warnings
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return Response.json({ error: msg }, { status: 400 });
+      }
+    }
+
+    // GET /api/version
+    if (url.pathname === "/api/version") {
+      return Response.json({ version: version() });
+    }
+
+    // GET /api/og — generate OG image from query params
+    if (url.pathname === "/api/og") {
+      const title = url.searchParams.get("title") || "Untitled";
+      const subtitle = url.searchParams.get("subtitle") || "";
+
+      const result = compileDocument({
+        meta: { width: 1200, height: 630 },
+        content: {
+          type: "flex",
+          style: {
+            width: 1200,
+            height: 630,
+            padding: 80,
+            backgroundColor: "#0f172a",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: 24
+          },
+          children: [
+            {
+              type: "text",
+              content: title,
+              style: { fontSize: 72, fontWeight: 700, color: "#f8fafc" }
+            },
+            subtitle ? {
+              type: "text",
+              content: subtitle,
+              style: { fontSize: 32, color: "#94a3b8" }
+            } : null
+          ].filter(Boolean) as any
+        }
+      });
+
+      return new Response(result.svg, {
+        headers: {
+          "Content-Type": "image/svg+xml",
+          "Cache-Control": "public, max-age=86400"
+        }
+      });
+    }
+
+    return new Response("HTVG Edge Worker", { status: 200 });
+  }
+};
+```
+
+## Vercel Edge Functions
+
+Deploy HTVG to Vercel's edge network:
+
+<Tabs>
+  <Tab title="Edge Function">
+    ```typescript api/svg.ts
+    import { init, compileDocument } from "htvg";
+    import { NextRequest, NextResponse } from "next/server";
+
+    export const config = {
+      runtime: "edge"
+    };
+
+    let initialized = false;
+
+    export default async function handler(req: NextRequest) {
+      if (!initialized) {
+        // Fetch WASM module from public directory
+        const wasmUrl = new URL("/htvg_bg.wasm", req.url);
+        const wasmResponse = await fetch(wasmUrl);
+        const wasmBuffer = await wasmResponse.arrayBuffer();
+        await init(wasmBuffer);
+        initialized = true;
+      }
+
+      if (req.method === "POST") {
+        const doc = await req.json();
+        const result = compileDocument(doc);
+
+        return new NextResponse(result.svg, {
+          headers: {
+            "Content-Type": "image/svg+xml",
+            "Cache-Control": "public, max-age=3600"
+          }
+        });
+      }
+
+      return new NextResponse("Method not allowed", { status: 405 });
+    }
+    ```
+  </Tab>
+
+  <Tab title="Setup">
+    ```bash
+    # Install dependencies
+    npm install htvg
+
+    # Copy WASM to public directory
+    cp node_modules/htvg/dist/wasm/htvg_bg.wasm public/
+
+    # Deploy
+    vercel deploy
+    ```
+  </Tab>
+</Tabs>
+
+## Deno Deploy
+
+Deno has first-class TypeScript and WASM support:
+
+```typescript main.ts
+import { init, compileDocument } from "npm:htvg";
+
+let initialized = false;
+
+async function initWasm() {
+  if (!initialized) {
+    // Load WASM from URL or local file
+    const wasmUrl = "https://unpkg.com/htvg/dist/wasm/htvg_bg.wasm";
+    const wasmResponse = await fetch(wasmUrl);
+    const wasmBuffer = await wasmResponse.arrayBuffer();
+    await init(wasmBuffer);
+    initialized = true;
+  }
+}
+
+Deno.serve(async (req) => {
+  await initWasm();
+
+  const url = new URL(req.url);
+
+  if (url.pathname === "/api/svg" && req.method === "POST") {
+    const doc = await req.json();
+    const result = compileDocument(doc);
+
+    return new Response(result.svg, {
+      headers: {
+        "Content-Type": "image/svg+xml",
+        "Cache-Control": "public, max-age=3600"
+      }
+    });
+  }
+
+  return new Response("HTVG on Deno Deploy");
+});
+```
+
+Deploy with:
+
+```bash
+deployctl deploy --project=htvg-demo main.ts
+```
+
+## Performance Optimization
+
+<AccordionGroup>
+  <Accordion title="Initialize WASM Once">
+    Cache the WASM initialization globally to avoid repeated setup:
+
+    ```typescript
+    let wasmInitialized = false;
+
+    export default {
+      async fetch(request: Request) {
+        if (!wasmInitialized) {
+          await init(wasmModule);
+          wasmInitialized = true;
+        }
+        // ... rest of handler
+      }
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Cache Compiled Results">
+    Use Cloudflare KV or similar for caching:
+
+    ```typescript
+    const cacheKey = `svg:${JSON.stringify(doc)}`;
+    let cached = await KV.get(cacheKey);
+
+    if (!cached) {
+      const result = compileDocument(doc);
+      await KV.put(cacheKey, result.svg, { expirationTtl: 3600 });
+      cached = result.svg;
+    }
+
+    return new Response(cached, {
+      headers: { "Content-Type": "image/svg+xml" }
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Streaming Responses">
+    For large SVGs, stream the response:
+
+    ```typescript
+    const result = compileDocument(doc);
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(result.svg));
+        controller.close();
+      }
+    });
+
+    return new Response(stream, {
+      headers: { "Content-Type": "image/svg+xml" }
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Environment Comparison
+
+| Runtime | WASM Support | Setup Complexity | Cold Start | Global Distribution |
+|---------|--------------|------------------|------------|---------------------|
+| **Cloudflare Workers** | Native | Easy | ~0ms | 300+ locations |
+| **Vercel Edge** | Via fetch | Moderate | ~10ms | 30+ regions |
+| **Deno Deploy** | Native | Easy | ~5ms | 35+ regions |
+| **AWS Lambda@Edge** | Via layers | Complex | ~100ms | 13+ regions |
+
+<Tip>
+Cloudflare Workers is recommended for production HTVG deployments due to native WASM support and zero cold starts.
+</Tip>
+
+## CORS Configuration
+
+If your edge function serves an API, add CORS headers:
+
+```typescript
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type"
+};
+
+export default {
+  async fetch(request: Request) {
+    // Handle preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    // ... your logic
+
+    return new Response(result.svg, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "image/svg+xml"
+      }
+    });
+  }
+};
+```
+
+## Example Deployments
+
+<CardGroup cols={2}>
+  <Card title="Live Demo" href="https://htvg-demo.pavi2410.workers.dev" icon="play">
+    Interactive playground on Cloudflare Workers
+  </Card>
+  <Card title="GitHub Repo" href="https://github.com/pavi2410/htvg" icon="github">
+    Source code and examples
+  </Card>
+</CardGroup>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="OG Images" href="/guides/og-images" icon="image">
+    Generate Open Graph images at the edge
+  </Card>
+  <Card title="API Reference" href="/api/js/compile" icon="code">
+    Full API documentation
+  </Card>
+  <Card title="Custom Fonts" href="/guides/custom-fonts" icon="font">
+    Use web fonts in edge deployments
+  </Card>
+  <Card title="Examples" href="/guides/examples" icon="book-open">
+    Real-world use cases
+  </Card>
+</CardGroup>

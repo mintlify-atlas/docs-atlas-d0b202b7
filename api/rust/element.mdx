@@ -1,0 +1,419 @@
+---
+title: "Element Types"
+description: "Element tree structure and style properties for HTVG input schema"
+---
+
+HTVG elements define the structure of your graphic. All elements are defined in the `Element` enum.
+
+## Element Enum
+
+Root element type that can be Box, Flex, Text, or Image.
+
+```rust
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum Element {
+    Box {
+        #[serde(default)]
+        style: BoxStyle,
+        #[serde(default)]
+        children: Vec<Element>,
+    },
+    Flex {
+        #[serde(default)]
+        style: FlexStyle,
+        #[serde(default)]
+        children: Vec<Element>,
+    },
+    Text {
+        content: String,
+        #[serde(default)]
+        style: TextStyle,
+    },
+    Image {
+        src: String,
+        width: f32,
+        height: f32,
+        #[serde(default)]
+        style: ImageStyle,
+    },
+}
+```
+
+---
+
+## Box Element
+
+Block container element for grouping children.
+
+<ParamField path="style" type="BoxStyle" default="{}">
+  Styling properties for the box
+</ParamField>
+
+<ParamField path="children" type="Vec<Element>" default="[]">
+  Child elements
+</ParamField>
+
+### BoxStyle
+
+```rust
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BoxStyle {
+    // Display
+    pub display: Option<Display>,
+
+    // Dimensions
+    pub width: Option<Dimension>,
+    pub height: Option<Dimension>,
+    pub min_width: Option<Dimension>,
+    pub max_width: Option<Dimension>,
+    pub min_height: Option<Dimension>,
+    pub max_height: Option<Dimension>,
+
+    // Spacing
+    pub margin: Option<Spacing>,
+    pub padding: Option<Spacing>,
+
+    // Visual
+    pub background_color: Option<Color>,
+    pub border_width: Option<f32>,
+    pub border_color: Option<Color>,
+    pub border_radius: Option<BorderRadius>,
+    pub opacity: Option<f32>,
+}
+```
+
+### Example
+
+```json
+{
+  "type": "box",
+  "style": {
+    "width": 200,
+    "height": 100,
+    "backgroundColor": "#ff0000",
+    "borderRadius": 8,
+    "padding": "10 20"
+  },
+  "children": []
+}
+```
+
+---
+
+## Flex Element
+
+Flexbox container element with flex layout properties.
+
+<ParamField path="style" type="FlexStyle" default="{}">
+  Styling and flex properties
+</ParamField>
+
+<ParamField path="children" type="Vec<Element>" default="[]">
+  Child elements laid out using flexbox
+</ParamField>
+
+### FlexStyle
+
+```rust
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FlexStyle {
+    // Display
+    pub display: Option<Display>,
+
+    // Dimensions
+    pub width: Option<Dimension>,
+    pub height: Option<Dimension>,
+    pub min_width: Option<Dimension>,
+    pub max_width: Option<Dimension>,
+    pub min_height: Option<Dimension>,
+    pub max_height: Option<Dimension>,
+
+    // Spacing
+    pub margin: Option<Spacing>,
+    pub padding: Option<Spacing>,
+
+    // Flex container
+    pub flex_direction: Option<FlexDirection>,
+    pub justify_content: Option<JustifyContent>,
+    pub align_items: Option<AlignItems>,
+    pub gap: Option<f32>,
+    pub flex_wrap: Option<FlexWrap>,
+
+    // Visual
+    pub background_color: Option<Color>,
+    pub border_width: Option<f32>,
+    pub border_color: Option<Color>,
+    pub border_radius: Option<BorderRadius>,
+    pub opacity: Option<f32>,
+}
+```
+
+### Flex Properties
+
+<ResponseField name="flex_direction" type="FlexDirection">
+  Layout direction: `row`, `column`, `row-reverse`, `column-reverse` (default: `row`)
+</ResponseField>
+
+<ResponseField name="justify_content" type="JustifyContent">
+  Main axis alignment: `flex-start`, `flex-end`, `center`, `space-between`, `space-around`, `space-evenly` (default: `flex-start`)
+</ResponseField>
+
+<ResponseField name="align_items" type="AlignItems">
+  Cross axis alignment: `flex-start`, `flex-end`, `center`, `stretch`, `baseline` (default: `stretch`)
+</ResponseField>
+
+<ResponseField name="gap" type="f32">
+  Spacing between flex items in pixels
+</ResponseField>
+
+<ResponseField name="flex_wrap" type="FlexWrap">
+  Wrapping behavior: `nowrap`, `wrap` (default: `nowrap`)
+</ResponseField>
+
+### Example
+
+```json
+{
+  "type": "flex",
+  "style": {
+    "flexDirection": "column",
+    "width": 400,
+    "padding": 20,
+    "backgroundColor": "#fff",
+    "gap": 10,
+    "alignItems": "center"
+  },
+  "children": [
+    {
+      "type": "text",
+      "content": "Hello World",
+      "style": { "fontSize": 24, "color": "#333" }
+    }
+  ]
+}
+```
+
+---
+
+## Text Element
+
+Text leaf element with typography controls.
+
+<ParamField path="content" type="String" required>
+  The text content to render
+</ParamField>
+
+<ParamField path="style" type="TextStyle" default="{}">
+  Typography and styling properties
+</ParamField>
+
+### TextStyle
+
+```rust
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TextStyle {
+    // Typography
+    pub font_family: Option<String>,
+    pub font_size: Option<f32>,
+    pub font_weight: Option<FontWeight>,
+    pub line_height: Option<f32>,
+    pub text_align: Option<TextAlign>,
+    pub color: Option<Color>,
+    pub letter_spacing: Option<f32>,
+    pub text_rendering: Option<TextRendering>,
+
+    // Flex child properties
+    pub flex_grow: Option<f32>,
+    pub flex_shrink: Option<f32>,
+}
+```
+
+### Typography Properties
+
+<ResponseField name="font_family" type="String">
+  Font family name (must match a registered font)
+</ResponseField>
+
+<ResponseField name="font_size" type="f32">
+  Font size in pixels
+</ResponseField>
+
+<ResponseField name="font_weight" type="FontWeight">
+  Font weight: 100-900 or `"normal"` (400), `"bold"` (700)
+</ResponseField>
+
+<ResponseField name="line_height" type="f32">
+  Line height multiplier
+</ResponseField>
+
+<ResponseField name="text_align" type="TextAlign">
+  Text alignment: `left`, `center`, `right`, `justify` (default: `left`)
+</ResponseField>
+
+<ResponseField name="text_rendering" type="TextRendering">
+  Rendering mode: `text` (default, uses SVG `<text>`), `vector` (converts to paths)
+</ResponseField>
+
+### Example
+
+```json
+{
+  "type": "text",
+  "content": "Hello World",
+  "style": {
+    "fontSize": 24,
+    "fontWeight": "bold",
+    "color": "#333333",
+    "textAlign": "center",
+    "letterSpacing": 0.5
+  }
+}
+```
+
+---
+
+## Image Element
+
+Image element with intrinsic dimensions and object-fit support.
+
+<ParamField path="src" type="String" required>
+  Image URL or data URI
+</ParamField>
+
+<ParamField path="width" type="f32" required>
+  Intrinsic width of the image in pixels
+</ParamField>
+
+<ParamField path="height" type="f32" required>
+  Intrinsic height of the image in pixels
+</ParamField>
+
+<ParamField path="style" type="ImageStyle" default="{}">
+  Image styling properties
+</ParamField>
+
+### ImageStyle
+
+```rust
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ImageStyle {
+    // Dimensions (overrides intrinsic if set)
+    pub width: Option<Dimension>,
+    pub height: Option<Dimension>,
+    pub min_width: Option<Dimension>,
+    pub max_width: Option<Dimension>,
+    pub min_height: Option<Dimension>,
+    pub max_height: Option<Dimension>,
+
+    // Spacing
+    pub margin: Option<Spacing>,
+
+    // Image-specific
+    pub object_fit: Option<ObjectFit>,
+
+    // Visual
+    pub border_radius: Option<BorderRadius>,
+    pub opacity: Option<f32>,
+
+    // Flex child properties
+    pub flex_grow: Option<f32>,
+    pub flex_shrink: Option<f32>,
+}
+```
+
+<ResponseField name="object_fit" type="ObjectFit">
+  Image scaling mode: `contain`, `cover`, `fill` (default: `contain`)
+</ResponseField>
+
+### Example
+
+```json
+{
+  "type": "image",
+  "src": "https://example.com/image.jpg",
+  "width": 800,
+  "height": 600,
+  "style": {
+    "width": 400,
+    "objectFit": "cover",
+    "borderRadius": 8
+  }
+}
+```
+
+---
+
+## Dimension Types
+
+### Dimension
+
+A dimension value that can be a number (pixels) or percentage string.
+
+```rust
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum Dimension {
+    Px(f32),
+    Percent(String), // e.g., "50%"
+}
+```
+
+**Examples:** `400`, `"50%"`
+
+### Spacing
+
+Spacing value for margin/padding - can be a single number or space-separated string.
+
+```rust
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum Spacing {
+    Uniform(f32),
+    Multi(String), // e.g., "10 20" or "10 20 30 40"
+}
+```
+
+**Examples:**
+- `10` - 10px on all sides
+- `"10 20"` - 10px vertical, 20px horizontal
+- `"10 20 30 40"` - top, right, bottom, left
+
+### BorderRadius
+
+Border radius - single value or per-corner.
+
+```rust
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum BorderRadius {
+    Uniform(f32),
+    Multi(String), // e.g., "8 8 0 0"
+}
+```
+
+**Examples:**
+- `8` - 8px on all corners
+- `"8 8 0 0"` - top-left, top-right, bottom-right, bottom-left
+
+### Color
+
+Color value - supports hex and rgb/rgba functions.
+
+```rust
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+```
+
+**Supported formats:**
+- Hex: `"#RGB"`, `"#RRGGBB"`, `"#RRGGBBAA"`
+- Functions: `"rgb(255, 0, 0)"`, `"rgba(0, 0, 255, 0.5)"`
+- Named: `"transparent"`, `"black"`, `"white"`, `"red"`, `"green"`, `"blue"`

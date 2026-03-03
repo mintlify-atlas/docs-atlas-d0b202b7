@@ -1,80 +1,462 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get started with HTVG and create your first SVG from JSON in minutes
 ---
 
-## Get started in three steps
+HTVG is a static compiler that converts JSON element trees to pure SVG with correct multiline text layout and flexbox support. This guide will get you from zero to working SVG output in just a few minutes.
 
-Get your documentation site running locally and make your first customization.
+<Steps>
 
-### Step 1: Set up your local environment
+<Step title="Install HTVG">
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+Choose your preferred environment:
+
+<CodeGroup>
+
+```bash JavaScript/Node.js
+npm install htvg
+```
+
+```bash Rust
+cargo add htvg
+```
+
+</CodeGroup>
+
+</Step>
+
+<Step title="Initialize (JavaScript only)">
+
+If you're using JavaScript, you need to initialize the WASM module before compilation:
+
+<CodeGroup>
+
+```javascript Browser
+import { init, compileDocument } from 'htvg';
+
+// Auto-fetches the .wasm file
+await init();
+```
+
+```javascript Node.js
+import { init, compileDocument } from 'htvg';
+import fs from 'node:fs';
+
+await init(fs.readFileSync('node_modules/htvg/dist/wasm/htvg_bg.wasm'));
+```
+
+```javascript Cloudflare Workers
+import { init, compileDocument } from 'htvg';
+import wasmModule from 'htvg/htvg.wasm';
+
+await init(wasmModule);
+```
+
+</CodeGroup>
+
+<Note>
+Rust users can skip this step - no initialization required!
+</Note>
+
+</Step>
+
+<Step title="Create your first SVG">
+
+Let's create a simple "Hello World" document:
+
+<Tabs>
+
+<Tab title="JavaScript">
+
+```javascript
+import { init, compileDocument } from 'htvg';
+
+await init();
+
+const result = compileDocument({
+  meta: { width: 400 },
+  content: {
+    type: "flex",
+    style: {
+      width: 400,
+      padding: 32,
+      backgroundColor: "#ffffff",
+      flexDirection: "column",
+      gap: 12
+    },
+    children: [
+      {
+        type: "text",
+        content: "Hello, HTVG!",
+        style: {
+          fontSize: 32,
+          fontWeight: "bold",
+          color: "#1a1a1a"
+        }
+      },
+      {
+        type: "text",
+        content: "This is a self-contained document rendered to SVG.",
+        style: {
+          fontSize: 16,
+          color: "#666666"
+        }
+      }
+    ]
+  }
+});
+
+console.log(result.svg);     // SVG string
+console.log(result.width);   // 400
+console.log(result.height);  // auto-computed
+```
+
+</Tab>
+
+<Tab title="Rust">
+
+```rust
+use htvg::{compile, CompileOptions};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let json = r#"{
+        "type": "flex",
+        "style": {
+            "width": 400,
+            "padding": 32,
+            "backgroundColor": "#ffffff",
+            "flexDirection": "column",
+            "gap": 12
+        },
+        "children": [
+            {
+                "type": "text",
+                "content": "Hello, HTVG!",
+                "style": {
+                    "fontSize": 32,
+                    "fontWeight": "bold",
+                    "color": "#1a1a1a"
+                }
+            },
+            {
+                "type": "text",
+                "content": "This is a self-contained document rendered to SVG.",
+                "style": {
+                    "fontSize": 16,
+                    "color": "#666666"
+                }
+            }
+        ]
+    }"#;
+
+    let options = CompileOptions {
+        width: 400.0,
+        height: None,  // Auto-computed
+        font_size: 16.0,
+        ..CompileOptions::default()
+    };
+
+    let result = compile(json, &options)?;
+    println!("{}", result.svg);
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    Ok(())
+}
+```
 
-### Step 2: Deploy your changes
+</Tab>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Tab title="JSON File">
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+Create a file called `hello.json`:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+```json
+{
+  "meta": {
+    "width": 400
+  },
+  "content": {
+    "type": "flex",
+    "style": {
+      "width": 400,
+      "padding": 32,
+      "backgroundColor": "#ffffff",
+      "flexDirection": "column",
+      "gap": 12
+    },
+    "children": [
+      {
+        "type": "text",
+        "content": "Hello, HTVG!",
+        "style": {
+          "fontSize": 32,
+          "fontWeight": "bold",
+          "color": "#1a1a1a"
+        }
+      },
+      {
+        "type": "text",
+        "content": "This is a self-contained document rendered to SVG.",
+        "style": {
+          "fontSize": 16,
+          "color": "#666666"
+        }
+      }
+    ]
+  }
+}
+```
 
-### Step 3: Go live
+Then compile it with the JavaScript API:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```javascript
+import { init, compileDocument } from 'htvg';
+import fs from 'node:fs';
 
-## Next steps
+await init(fs.readFileSync('node_modules/htvg/dist/wasm/htvg_bg.wasm'));
 
-Now that you have your docs running, explore these key features:
+const doc = JSON.parse(fs.readFileSync('hello.json', 'utf-8'));
+const result = compileDocument(doc);
+
+fs.writeFileSync('hello.svg', result.svg);
+```
+
+</Tab>
+
+</Tabs>
+
+</Step>
+
+<Step title="Build something more complex">
+
+Let's create a card component with borders, rounded corners, and nested layouts:
+
+```json
+{
+  "meta": {
+    "width": 360
+  },
+  "content": {
+    "type": "flex",
+    "style": {
+      "width": 360,
+      "padding": 24,
+      "backgroundColor": "#f8f9fa",
+      "flexDirection": "column",
+      "gap": 16
+    },
+    "children": [
+      {
+        "type": "flex",
+        "style": {
+          "backgroundColor": "#ffffff",
+          "borderRadius": 12,
+          "borderWidth": 1,
+          "borderColor": "#e0e0e0",
+          "padding": 20,
+          "flexDirection": "column",
+          "gap": 8
+        },
+        "children": [
+          {
+            "type": "text",
+            "content": "Card Title",
+            "style": {
+              "fontSize": 20,
+              "fontWeight": 700,
+              "color": "#1a1a1a"
+            }
+          },
+          {
+            "type": "text",
+            "content": "This is a card component with a border, rounded corners, and some padding. It demonstrates nested flex containers.",
+            "style": {
+              "fontSize": 14,
+              "color": "#555555",
+              "lineHeight": 1.5
+            }
+          },
+          {
+            "type": "flex",
+            "style": {
+              "flexDirection": "row",
+              "gap": 8,
+              "padding": "12 0 0 0"
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "width": 80,
+                  "height": 32,
+                  "backgroundColor": "#2563eb",
+                  "borderRadius": 6
+                }
+              },
+              {
+                "type": "box",
+                "style": {
+                  "width": 80,
+                  "height": 32,
+                  "backgroundColor": "#e2e8f0",
+                  "borderRadius": 6
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+<Info>
+This example demonstrates:
+- Nested flex containers
+- Border and border-radius styling
+- Multi-value padding (`"padding": "12 0 0 0"`)
+- Row and column layouts
+- Proper text wrapping with `lineHeight`
+</Info>
+
+</Step>
+
+<Step title="Use the two compilation modes">
+
+HTVG provides two ways to compile your documents:
+
+<Tabs>
+
+<Tab title="compileDocument">
+
+**Best for:** Self-contained documents with metadata
+
+```javascript
+const result = compileDocument({
+  meta: { 
+    width: 600,
+    fonts: [
+      { family: "Inter", url: "https://fonts.gstatic.com/..." }
+    ]
+  },
+  content: {
+    type: "text",
+    content: "Hello",
+    style: { fontSize: 32, fontFamily: "Inter" }
+  }
+});
+```
+
+</Tab>
+
+<Tab title="compile">
+
+**Best for:** Separating element structure from options
+
+```javascript
+import { init, compile } from 'htvg';
+
+await init();
+
+const element = {
+  type: "flex",
+  style: { flexDirection: "column", gap: 8 },
+  children: [
+    { 
+      type: "text", 
+      content: "Title", 
+      style: { fontSize: 20, fontWeight: 700 } 
+    }
+  ]
+};
+
+const result = compile(element, { width: 400 });
+```
+
+</Tab>
+
+</Tabs>
+
+</Step>
+
+</Steps>
+
+## Next Steps
 
 <CardGroup cols={2}>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
+<Card title="Element Types" icon="shapes" href="/concepts/element-types">
+  Learn about all available element types: box, flex, text, and image
 </Card>
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
+<Card title="Style Properties" icon="palette" href="/concepts/style-properties">
+  Explore layout, flex, visual, and typography properties
 </Card>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
+<Card title="API Reference" icon="code" href="/api/rust/compile">
+  Complete API documentation for JavaScript and Rust
 </Card>
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
+<Card title="Examples" icon="sparkles" href="/guides/examples">
+  Browse real-world examples and templates
 </Card>
 
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Common Patterns
+
+### Creating badges
+
+```json
+{
+  "type": "flex",
+  "style": {
+    "backgroundColor": "#22c55e",
+    "borderRadius": 16,
+    "padding": "6 14"
+  },
+  "children": [
+    {
+      "type": "text",
+      "content": "Success",
+      "style": { "fontSize": 13, "fontWeight": 600, "color": "#ffffff" }
+    }
+  ]
+}
+```
+
+### Responsive width
+
+Use percentage strings for fluid layouts:
+
+```json
+{
+  "type": "box",
+  "style": {
+    "width": "100%",
+    "padding": 20
+  }
+}
+```
+
+### Custom fonts
+
+```javascript
+const result = compileDocument({
+  meta: {
+    width: 400,
+    fonts: [
+      { family: "Geist", url: "https://example.com/geist.woff2" }
+    ]
+  },
+  content: {
+    type: "text",
+    content: "Custom font text",
+    style: { fontFamily: "Geist", fontSize: 18 }
+  }
+});
+```
+
+<Tip>
+The `height` is automatically computed based on content unless explicitly specified in `meta.height`.
+</Tip>

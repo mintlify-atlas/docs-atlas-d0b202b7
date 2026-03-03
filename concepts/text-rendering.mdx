@@ -1,0 +1,583 @@
+---
+title: Text Rendering
+description: How HTVG uses Parley for text shaping, line breaking, and glyph positioning
+---
+
+HTVG uses [Parley](https://github.com/linebender/parley), a modern text layout library from the Linebender project, to handle text shaping, line breaking, and glyph positioning.
+
+## Overview
+
+Text rendering in HTVG is a two-phase process:
+
+<Steps>
+  <Step title="Measurement Phase">
+    Parley measures text dimensions for layout computation
+  </Step>
+  <Step title="Layout Phase">
+    Parley performs full text shaping with glyph positions
+  </Step>
+  <Step title="Rendering Phase">
+    SVG `<text>` elements are generated from glyph positions
+  </Step>
+</Steps>
+
+## Why Parley?
+
+Parley is a state-of-the-art text layout engine designed for modern UI frameworks.
+
+<CardGroup cols={2}>
+  <Card title="Unicode Correct" icon="language">
+    Proper handling of complex scripts (Arabic, Thai, etc.)
+  </Card>
+  <Card title="Bidirectional Text" icon="arrows-left-right">
+    Supports RTL and mixed-direction text
+  </Card>
+  <Card title="Advanced Typography" icon="font">
+    Ligatures, kerning, and OpenType features
+  </Card>
+  <Card title="Line Breaking" icon="text-width">
+    Intelligent word wrapping with Unicode line break algorithm
+  </Card>
+</CardGroup>
+
+## Text Layout Engine
+
+The text engine is implemented in `crates/htvg-core/src/text.rs`:
+
+```rust
+pub struct TextLayoutEngine {
+    font_cx: FontContext,
+    layout_cx: LayoutContext<[u8; 4]>,
+}
+
+impl TextLayoutEngine {
+    pub fn new() -> Self {
+        Self {
+            font_cx: FontContext::new(),
+            layout_cx: LayoutContext::new(),
+        }
+    }
+}
+```
+
+From `crates/htvg-core/src/text.rs:18-30`.
+
+### Font Context
+
+The `FontContext` manages font loading and selection. It maintains a font collection that can be populated with system fonts or custom fonts.
+
+### Layout Context
+
+The `LayoutContext` is reusable across multiple layout operations, improving performance by caching internal state.
+
+## Font Registration
+
+Fonts can be registered from binary data:
+
+```rust
+pub fn register_font(&mut self, data: Vec<u8>) -> Vec<String> {
+    let families = self.font_cx.collection.register_fonts(data.into(), None);
+    families
+        .iter()
+        .map(|(id, _info)| {
+            self.font_cx
+                .collection
+                .family_name(*id)
+                .unwrap_or("unknown")
+                .to_string()
+        })
+        .collect()
+}
+```
+
+From `crates/htvg-core/src/text.rs:32-45`.
+
+<Tip>
+  For self-contained SVG output that doesn't depend on system fonts, register custom fonts using this method.
+</Tip>
+
+## Text Measurement
+
+During layout computation, Taffy calls the measurement function to determine text dimensions:
+
+```rust
+pub fn measure(&mut self, text: &str, font_size: f32, max_width: Option<f32>) -> Size<f32> {
+    if text.is_empty() {
+        return Size {
+            width: 0.0,
+            height: font_size * 1.2,
+        };
+    }
+
+    let mut builder = self
+        .layout_cx
+        .ranged_builder(&mut self.font_cx, text, 1.0, false);
+
+    builder.push_default(StyleProperty::FontSize(font_size));
+    builder.push_default(StyleProperty::LineHeight(LineHeight::FontSizeRelative(1.2)));
+
+    let mut layout: Layout<[u8; 4]> = builder.build(text);
+    layout.break_all_lines(max_width);
+
+    let width = layout.width();
+    let height = layout.height();
+
+    // Fallback: if Parley returns zero dimensions (no font available),
+    // use approximate character-width estimation.
+    if width == 0.0 || height == 0.0 {
+        return fallback_measure(text, font_size, 1.2, max_width);
+    }
+
+    Size { width, height }
+}
+```
+
+From `crates/htvg-core/src/text.rs:47-76`.
+
+### Measurement Process
+
+1. **Create builder** - Initialize ranged style builder with font context
+2. **Apply styles** - Set font size and line height
+3. **Build layout** - Generate the layout tree
+4. **Break lines** - Apply line breaking with max width constraint
+5. **Return dimensions** - Extract width and height
+
+<Note>
+  If no fonts are available (e.g., in WASM without font registration), a fallback estimation is used based on average character width.
+</Note>
+
+## Full Text Layout
+
+After Taffy computes positions, the full layout is performed:
+
+```rust
+pub fn layout(
+    &mut self,
+    text: &str,
+    font_family: &str,
+    font_size: f32,
+    font_weight: u16,
+    line_height: f32,
+    text_align: TextAlign,
+    max_width: f32,
+) -> TextLayoutResult {
+    if text.is_empty() {
+        return TextLayoutResult {
+            width: 0.0,
+            height: font_size * line_height,
+            lines: vec![],
+        };
+    }
+
+    let mut builder = self
+        .layout_cx
+        .ranged_builder(&mut self.font_cx, text, 1.0, false);
+
+    builder.push_default(StyleProperty::FontSize(font_size));
+    builder.push_default(StyleProperty::FontWeight(FontWeight::new(font_weight as f32)));
+    builder.push_default(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
+        line_height,
+    )));
+    builder.push_default(StyleProperty::FontStack(FontStack::Source(Cow::Owned(
+        font_family.to_string(),
+    ))));
+
+    let mut layout: Layout<[u8; 4]> = builder.build(text);
+    layout.break_all_lines(Some(max_width));
+
+    let alignment = match text_align {
+        TextAlign::Left => Alignment::Start,
+        TextAlign::Center => Alignment::Center,
+        TextAlign::Right => Alignment::End,
+        TextAlign::Justify => Alignment::Justify,
+    };
+    layout.align(Some(max_width), alignment, AlignmentOptions::default());
+
+    // Extract lines and glyphs...
+}
+```
+
+From `crates/htvg-core/src/text.rs:78-120`.
+
+### Layout Steps
+
+1. **Create builder** with all style properties
+2. **Apply font family** using FontStack
+3. **Build layout** with full typography
+4. **Break lines** with max width
+5. **Align text** according to `textAlign` property
+6. **Extract glyph positions** for rendering
+
+## Line and Glyph Extraction
+
+Parley provides line and glyph information:
+
+```rust
+for line in layout.lines() {
+    let metrics = line.metrics();
+    let mut line_glyphs = Vec::new();
+    let mut line_start: Option<usize> = None;
+    let mut line_end: usize = 0;
+
+    for item in line.items() {
+        if let PositionedLayoutItem::GlyphRun(positioned_run) = item {
+            let run_x = positioned_run.offset();
+            let run = positioned_run.run();
+            let range = run.text_range();
+            
+            if line_start.is_none() || range.start < line_start.unwrap() {
+                line_start = Some(range.start);
+            }
+            if range.end > line_end {
+                line_end = range.end;
+            }
+
+            for glyph in positioned_run.glyphs() {
+                line_glyphs.push(PositionedGlyph {
+                    glyph_id: glyph.id,
+                    x: run_x + glyph.x,
+                    y: glyph.y,
+                    advance: glyph.advance,
+                });
+            }
+        }
+    }
+
+    let line_text = if let Some(start) = line_start {
+        text[start..line_end].trim_end().to_string()
+    } else {
+        String::new()
+    };
+
+    lines.push(TextLine {
+        text: line_text,
+        baseline: metrics.baseline,
+        ascent: metrics.ascent,
+        descent: metrics.descent,
+        glyphs: line_glyphs,
+    });
+}
+```
+
+From `crates/htvg-core/src/text.rs:124-166`.
+
+## Text Layout Result
+
+The layout result contains all information needed for rendering:
+
+```rust
+pub struct TextLayoutResult {
+    pub width: f32,
+    pub height: f32,
+    pub lines: Vec<TextLine>,
+}
+
+pub struct TextLine {
+    pub text: String,
+    pub baseline: f32,
+    pub ascent: f32,
+    pub descent: f32,
+    pub glyphs: Vec<PositionedGlyph>,
+}
+
+pub struct PositionedGlyph {
+    pub glyph_id: u32,
+    pub x: f32,
+    pub y: f32,
+    pub advance: f32,
+}
+```
+
+From `crates/htvg-core/src/text.rs:190-215`.
+
+<Tabs>
+  <Tab title="TextLayoutResult">
+    Contains overall dimensions and array of lines
+  </Tab>
+  <Tab title="TextLine">
+    One line of text with metrics (baseline, ascent, descent) and positioned glyphs
+  </Tab>
+  <Tab title="PositionedGlyph">
+    Individual glyph with ID and x/y position for rendering
+  </Tab>
+</Tabs>
+
+## Line Metrics
+
+Each line provides typographic metrics:
+
+- **baseline** - Y position of the text baseline
+- **ascent** - Height above baseline (positive)
+- **descent** - Depth below baseline (positive)
+
+```
+        ┌─── ascent ───┐
+        │              │
+─────── baseline ──────────  ← y position
+        │              │
+        └── descent ───┘
+```
+
+These metrics are essential for correctly positioning text within SVG.
+
+## Text Alignment
+
+Parley supports all standard text alignment modes:
+
+<Tabs>
+  <Tab title="Left (Start)">
+    ```rust
+    Alignment::Start
+    ```
+    Text aligned to the left edge (or right for RTL).
+  </Tab>
+  <Tab title="Center">
+    ```rust
+    Alignment::Center
+    ```
+    Text centered horizontally.
+  </Tab>
+  <Tab title="Right (End)">
+    ```rust
+    Alignment::End
+    ```
+    Text aligned to the right edge (or left for RTL).
+  </Tab>
+  <Tab title="Justify">
+    ```rust
+    Alignment::Justify
+    ```
+    Text stretched to fill the full width.
+  </Tab>
+</Tabs>
+
+Alignment is applied after line breaking:
+
+```rust
+let alignment = match text_align {
+    TextAlign::Left => Alignment::Start,
+    TextAlign::Center => Alignment::Center,
+    TextAlign::Right => Alignment::End,
+    TextAlign::Justify => Alignment::Justify,
+};
+layout.align(Some(max_width), alignment, AlignmentOptions::default());
+```
+
+## Line Breaking Algorithm
+
+Parley uses the Unicode Line Breaking Algorithm (UAX #14) to determine valid line break opportunities.
+
+### Break Points
+
+- **Between words** - Standard space characters
+- **After hyphens** - Hyphen-minus and soft hyphens
+- **Zero-width spaces** - Explicit break opportunities
+- **Language-specific rules** - Complex scripts have special rules
+
+<Info>
+  Parley correctly handles languages like Thai (no spaces between words) and Arabic (contextual letter forms).
+</Info>
+
+## Fallback Rendering
+
+When fonts are unavailable (e.g., WASM without font registration), HTVG uses fallback estimation:
+
+```rust
+const CHAR_WIDTH_RATIO: f32 = 0.55;
+const ASCENT_RATIO: f32 = 0.8;
+const DESCENT_RATIO: f32 = 0.2;
+
+fn estimate_text_width(text: &str, font_size: f32) -> f32 {
+    text.chars().count() as f32 * font_size * CHAR_WIDTH_RATIO
+}
+
+fn word_wrap(text: &str, font_size: f32, max_width: Option<f32>) -> Vec<String> {
+    // Simple word-based wrapping using estimated character width
+    // ...
+}
+```
+
+From `crates/htvg-core/src/text.rs:221-264`.
+
+<Warning>
+  Fallback rendering is approximate and doesn't handle complex scripts correctly. For production use, always register fonts.
+</Warning>
+
+## SVG Text Rendering
+
+The SVG renderer uses Parley's output to generate `<text>` elements:
+
+```xml
+<text
+  x="20"
+  y="50"
+  font-family="sans-serif"
+  font-size="16"
+  font-weight="400"
+  fill="#000000"
+  text-anchor="start"
+>
+  Line of text here
+</text>
+```
+
+Each line becomes a separate `<text>` element positioned at the correct baseline.
+
+### Text Rendering Modes
+
+HTVG supports two text rendering modes (configured via `textRendering` style property):
+
+<Tabs>
+  <Tab title="Text Mode (Default)">
+    ```json
+    {
+      "type": "text",
+      "content": "Hello",
+      "style": {
+        "textRendering": "text"
+      }
+    }
+    ```
+    Renders as SVG `<text>` elements. Requires the font to be available on the viewer's system.
+  </Tab>
+  <Tab title="Vector Mode (Planned)">
+    ```json
+    {
+      "type": "text",
+      "content": "Hello",
+      "style": {
+        "textRendering": "vector"
+      }
+    }
+    ```
+    Would render text as vector `<path>` elements. Fully self-contained, no font dependency. **Not yet implemented.**
+  </Tab>
+</Tabs>
+
+<Note>
+  Vector rendering (converting glyphs to paths) is planned for future versions. This would make SVG output truly self-contained.
+</Note>
+
+## Typography Features
+
+Parley supports advanced OpenType features:
+
+- **Ligatures** - Automatic substitution (fi → ﬁ)
+- **Kerning** - Spacing adjustments between letter pairs
+- **Contextual alternates** - Letter forms that change based on context
+- **Small caps, old-style numerals**, and more
+
+These features are automatically applied when the font supports them.
+
+## Performance Considerations
+
+### Measurement Caching
+
+The `LayoutContext` is reused across multiple layout operations to cache internal state:
+
+```rust
+pub struct TextLayoutEngine {
+    font_cx: FontContext,
+    layout_cx: LayoutContext<[u8; 4]>,  // Reused for better performance
+}
+```
+
+### Two-Phase Approach
+
+HTVG uses a two-phase approach:
+
+1. **Fast measurement** - Quick dimension calculation for layout
+2. **Full layout** - Complete glyph positioning only when needed
+
+This avoids redundant work during the iterative layout process.
+
+<Tip>
+  For documents with many text elements, text measurement is typically the performance bottleneck. Using a consistent font reduces font loading overhead.
+</Tip>
+
+## Example: Text Layout Flow
+
+<Tabs>
+  <Tab title="Input">
+    ```json
+    {
+      "type": "text",
+      "content": "This is a long paragraph that will wrap across multiple lines when rendered.",
+      "style": {
+        "fontSize": 16,
+        "lineHeight": 1.5,
+        "textAlign": "justify"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Measurement">
+    ```
+    Available width: 300px
+    Font size: 16px
+    Line height: 24px (16 * 1.5)
+
+    Parley measures:
+    → 3 lines needed
+    → Height: 72px (3 * 24)
+    → Width: 300px (max width)
+    ```
+  </Tab>
+  <Tab title="Layout">
+    ```
+    Line 1: "This is a long paragraph that"
+      baseline: 19.2, ascent: 12.8, descent: 3.2
+    
+    Line 2: "will wrap across multiple"
+      baseline: 43.2, ascent: 12.8, descent: 3.2
+    
+    Line 3: "lines when rendered."
+      baseline: 67.2, ascent: 12.8, descent: 3.2
+    
+    Each line has justified alignment,
+    glyphs positioned with kerning and ligatures applied.
+    ```
+  </Tab>
+  <Tab title="SVG Output">
+    ```xml
+    <text x="0" y="19.2" ...>This is a long paragraph that</text>
+    <text x="0" y="43.2" ...>will wrap across multiple</text>
+    <text x="0" y="67.2" ...>lines when rendered.</text>
+    ```
+  </Tab>
+</Tabs>
+
+## Debugging Text Layout
+
+When debugging text rendering issues:
+
+1. **Check font availability** - Ensure fonts are registered or available on the system
+2. **Verify max width** - Text needs a width constraint to wrap
+3. **Inspect line metrics** - Check that baseline/ascent/descent are reasonable
+4. **Test with simple ASCII** - Rule out complex script issues
+5. **Check fallback mode** - If dimensions seem estimated, fonts may not be loaded
+
+<Warning>
+  Common issue: Text not wrapping. Ensure the parent container has a defined width.
+</Warning>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Element Types" icon="shapes" href="/concepts/element-types">
+    Learn about the Text element type
+  </Card>
+  <Card title="Style Properties" icon="paintbrush" href="/concepts/style-properties">
+    Typography style properties reference
+  </Card>
+  <Card title="Layout Engine" icon="grid" href="/concepts/layout-engine">
+    How text measurement integrates with layout
+  </Card>
+</CardGroup>
+
+## External Resources
+
+- [Parley GitHub Repository](https://github.com/linebender/parley)
+- [Unicode Line Breaking Algorithm (UAX #14)](https://www.unicode.org/reports/tr14/)
+- [OpenType Specification](https://learn.microsoft.com/en-us/typography/opentype/spec/)
+- [Linebender Project](https://linebender.org/)

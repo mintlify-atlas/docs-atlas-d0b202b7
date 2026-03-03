@@ -1,0 +1,476 @@
+---
+title: Real-World Examples
+description: Explore real-world HTVG examples from simple greetings to complex dashboards with cards, badges, and layouts
+---
+
+Learn from real HTVG documents used in production. All examples are from the official HTVG repository and demonstrate practical patterns.
+
+## Hello World
+
+A simple introduction to HTVG documents with basic text styling and flexbox layout.
+
+<CodeGroup>
+```json hello.json
+{
+  "meta": {
+    "width": 400
+  },
+  "content": {
+    "type": "flex",
+    "style": {
+      "width": 400,
+      "padding": 32,
+      "backgroundColor": "#ffffff",
+      "flexDirection": "column",
+      "gap": 12
+    },
+    "children": [
+      {
+        "type": "text",
+        "content": "Hello, HTVG!",
+        "style": {
+          "fontSize": 32,
+          "fontWeight": "bold",
+          "color": "#1a1a1a"
+        }
+      },
+      {
+        "type": "text",
+        "content": "This is a self-contained document rendered to SVG.",
+        "style": {
+          "fontSize": 16,
+          "color": "#666666"
+        }
+      }
+    ]
+  }
+}
+```
+
+```typescript TypeScript Usage
+import { init, compileDocument } from "htvg";
+
+await init();
+
+const result = compileDocument({
+  meta: { width: 400 },
+  content: {
+    type: "flex",
+    style: {
+      width: 400,
+      padding: 32,
+      backgroundColor: "#ffffff",
+      flexDirection: "column",
+      gap: 12
+    },
+    children: [
+      {
+        type: "text",
+        content: "Hello, HTVG!",
+        style: { fontSize: 32, fontWeight: "bold", color: "#1a1a1a" }
+      },
+      {
+        type: "text",
+        content: "This is a self-contained document rendered to SVG.",
+        style: { fontSize: 16, color: "#666666" }
+      }
+    ]
+  }
+});
+
+console.log(result.svg);
+```
+</CodeGroup>
+
+<Tip>
+The `meta.width` property is required. Height is automatically computed based on content.
+</Tip>
+
+## Card Layout
+
+Nested flex containers with borders, rounded corners, and complex layouts.
+
+```json card.json
+{
+  "meta": {
+    "width": 360
+  },
+  "content": {
+    "type": "flex",
+    "style": {
+      "width": 360,
+      "padding": 24,
+      "backgroundColor": "#f8f9fa",
+      "flexDirection": "column",
+      "gap": 16
+    },
+    "children": [
+      {
+        "type": "flex",
+        "style": {
+          "backgroundColor": "#ffffff",
+          "borderRadius": 12,
+          "borderWidth": 1,
+          "borderColor": "#e0e0e0",
+          "padding": 20,
+          "flexDirection": "column",
+          "gap": 8
+        },
+        "children": [
+          {
+            "type": "text",
+            "content": "Card Title",
+            "style": {
+              "fontSize": 20,
+              "fontWeight": 700,
+              "color": "#1a1a1a"
+            }
+          },
+          {
+            "type": "text",
+            "content": "This is a card component with a border, rounded corners, and some padding. It demonstrates nested flex containers.",
+            "style": {
+              "fontSize": 14,
+              "color": "#555555",
+              "lineHeight": 1.5
+            }
+          },
+          {
+            "type": "flex",
+            "style": {
+              "flexDirection": "row",
+              "gap": 8,
+              "padding": "12 0 0 0"
+            },
+            "children": [
+              {
+                "type": "box",
+                "style": {
+                  "width": 80,
+                  "height": 32,
+                  "backgroundColor": "#2563eb",
+                  "borderRadius": 6
+                }
+              },
+              {
+                "type": "box",
+                "style": {
+                  "width": 80,
+                  "height": 32,
+                  "backgroundColor": "#e2e8f0",
+                  "borderRadius": 6
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "flex",
+        "style": {
+          "backgroundColor": "#ffffff",
+          "borderRadius": 12,
+          "borderWidth": 1,
+          "borderColor": "#e0e0e0",
+          "padding": 20,
+          "flexDirection": "column",
+          "gap": 8
+        },
+        "children": [
+          {
+            "type": "text",
+            "content": "Another Card",
+            "style": {
+              "fontSize": 20,
+              "fontWeight": 700,
+              "color": "#1a1a1a"
+            }
+          },
+          {
+            "type": "text",
+            "content": "Cards can be stacked vertically in a flex column layout.",
+            "style": {
+              "fontSize": 14,
+              "color": "#555555",
+              "lineHeight": 1.5
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Key Patterns:**
+- Vertical stacking with `flexDirection: "column"`
+- Card-style components with `borderRadius` and `borderColor`
+- Multi-value padding: `"12 0 0 0"` (top right bottom left)
+- Nested flex containers for button rows
+
+## Status Dashboard with Badges
+
+A dark-themed dashboard with colorful status badges and flex wrap.
+
+<Tabs>
+  <Tab title="JSON">
+    ```json badge-row.json
+    {
+      "meta": {
+        "width": 500
+      },
+      "content": {
+        "type": "flex",
+        "style": {
+          "width": 500,
+          "padding": 24,
+          "backgroundColor": "#1e293b",
+          "flexDirection": "column",
+          "gap": 16
+        },
+        "children": [
+          {
+            "type": "text",
+            "content": "Status Dashboard",
+            "style": {
+              "fontSize": 24,
+              "fontWeight": "bold",
+              "color": "#f1f5f9"
+            }
+          },
+          {
+            "type": "flex",
+            "style": {
+              "flexDirection": "row",
+              "gap": 10,
+              "flexWrap": "wrap"
+            },
+            "children": [
+              {
+                "type": "flex",
+                "style": {
+                  "backgroundColor": "#22c55e",
+                  "borderRadius": 16,
+                  "padding": "6 14"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "content": "Passing",
+                    "style": { "fontSize": 13, "fontWeight": 600, "color": "#ffffff" }
+                  }
+                ]
+              },
+              {
+                "type": "flex",
+                "style": {
+                  "backgroundColor": "#ef4444",
+                  "borderRadius": 16,
+                  "padding": "6 14"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "content": "Failing",
+                    "style": { "fontSize": 13, "fontWeight": 600, "color": "#ffffff" }
+                  }
+                ]
+              },
+              {
+                "type": "flex",
+                "style": {
+                  "backgroundColor": "#eab308",
+                  "borderRadius": 16,
+                  "padding": "6 14"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "content": "Warning",
+                    "style": { "fontSize": 13, "fontWeight": 600, "color": "#ffffff" }
+                  }
+                ]
+              },
+              {
+                "type": "flex",
+                "style": {
+                  "backgroundColor": "#3b82f6",
+                  "borderRadius": 16,
+                  "padding": "6 14"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "content": "Info",
+                    "style": { "fontSize": 13, "fontWeight": 600, "color": "#ffffff" }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "flex",
+            "style": {
+              "backgroundColor": "#334155",
+              "borderRadius": 8,
+              "padding": 16,
+              "flexDirection": "column",
+              "gap": 6
+            },
+            "children": [
+              {
+                "type": "text",
+                "content": "Build #1247 completed in 3m 42s",
+                "style": { "fontSize": 14, "color": "#94a3b8" }
+              },
+              {
+                "type": "text",
+                "content": "All 128 tests passed. 0 failures.",
+                "style": { "fontSize": 14, "color": "#22c55e" }
+              }
+            ]
+          }
+        ]
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="TypeScript">
+    ```typescript
+    import { init, compileDocument } from "htvg";
+
+    await init();
+
+    const result = compileDocument({
+      meta: { width: 500 },
+      content: {
+        type: "flex",
+        style: {
+          width: 500,
+          padding: 24,
+          backgroundColor: "#1e293b",
+          flexDirection: "column",
+          gap: 16
+        },
+        children: [
+          {
+            type: "text",
+            content: "Status Dashboard",
+            style: { fontSize: 24, fontWeight: "bold", color: "#f1f5f9" }
+          },
+          {
+            type: "flex",
+            style: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+            children: [
+              // Badge components...
+            ]
+          }
+        ]
+      }
+    });
+    ```
+  </Tab>
+</Tabs>
+
+**Key Patterns:**
+- `flexWrap: "wrap"` for responsive badge wrapping
+- Pill-shaped badges with high `borderRadius`
+- Dark theme using slate colors
+- Consistent gap spacing for visual rhythm
+
+## Common Patterns
+
+<AccordionGroup>
+  <Accordion title="Centered Content">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "justifyContent": "center",
+        "alignItems": "center",
+        "width": 400,
+        "height": 300
+      },
+      "children": [
+        { "type": "text", "content": "Centered" }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Header with Title and Subtitle">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "flexDirection": "column",
+        "gap": 8
+      },
+      "children": [
+        {
+          "type": "text",
+          "content": "Main Title",
+          "style": { "fontSize": 28, "fontWeight": 700 }
+        },
+        {
+          "type": "text",
+          "content": "Subtitle or description",
+          "style": { "fontSize": 16, "color": "#666" }
+        }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Side-by-Side Buttons">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "flexDirection": "row",
+        "gap": 12
+      },
+      "children": [
+        {
+          "type": "box",
+          "style": {
+            "width": 100,
+            "height": 40,
+            "backgroundColor": "#2563eb",
+            "borderRadius": 8
+          }
+        },
+        {
+          "type": "box",
+          "style": {
+            "width": 100,
+            "height": 40,
+            "backgroundColor": "#e5e7eb",
+            "borderRadius": 8
+          }
+        }
+      ]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Try the Examples
+
+All examples are available in the [official repository](https://github.com/pavi2410/htvg/tree/main/examples) and can be tested in the [live demo](https://htvg-demo.pavi2410.workers.dev).
+
+<CardGroup cols={2}>
+  <Card title="API Reference" href="/api/rust/compile" icon="code">
+    Explore all element types and styles
+  </Card>
+  <Card title="Custom Fonts" href="/guides/custom-fonts" icon="font">
+    Add custom typography to your designs
+  </Card>
+  <Card title="OG Images" href="/guides/og-images" icon="image">
+    Generate Open Graph images
+  </Card>
+  <Card title="Edge Runtime" href="/guides/edge-runtime" icon="bolt">
+    Deploy to Cloudflare Workers
+  </Card>
+</CardGroup>

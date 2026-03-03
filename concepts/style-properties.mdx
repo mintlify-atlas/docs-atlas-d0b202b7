@@ -1,0 +1,785 @@
+---
+title: Style Properties
+description: Complete reference for all style properties including dimensions, spacing, colors, and flex properties
+---
+
+HTVG supports a comprehensive set of style properties inspired by CSS. All style properties are optional and use sensible defaults.
+
+## Property Categories
+
+<AccordionGroup>
+  <Accordion title="Dimensions" icon="ruler">
+    Control the size of elements with width, height, and constraints
+  </Accordion>
+  <Accordion title="Spacing" icon="expand">
+    Margin and padding using flexible syntax
+  </Accordion>
+  <Accordion title="Visual" icon="palette">
+    Colors, borders, and opacity
+  </Accordion>
+  <Accordion title="Flexbox" icon="grip-lines">
+    Flex container and child properties
+  </Accordion>
+  <Accordion title="Typography" icon="font">
+    Font properties for text elements
+  </Accordion>
+</AccordionGroup>
+
+## Dimension Properties
+
+Dimension properties control the size of elements. They accept either pixel values (numbers) or percentage strings.
+
+### Width & Height
+
+<ParamField path="width" type="number | string">
+  Element width. Examples:
+  - `400` - 400 pixels
+  - `"50%"` - 50% of parent width
+</ParamField>
+
+<ParamField path="height" type="number | string">
+  Element height. Examples:
+  - `200` - 200 pixels
+  - `"100%"` - 100% of parent height
+</ParamField>
+
+```json
+{
+  "type": "box",
+  "style": {
+    "width": 400,
+    "height": "50%"
+  }
+}
+```
+
+### Size Constraints
+
+<ParamField path="minWidth" type="number | string">
+  Minimum width constraint
+</ParamField>
+
+<ParamField path="maxWidth" type="number | string">
+  Maximum width constraint
+</ParamField>
+
+<ParamField path="minHeight" type="number | string">
+  Minimum height constraint
+</ParamField>
+
+<ParamField path="maxHeight" type="number | string">
+  Maximum height constraint
+</ParamField>
+
+<Tabs>
+  <Tab title="Constrained Width">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "width": "100%",
+        "maxWidth": 600,
+        "minWidth": 300
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Constrained Height">
+    ```json
+    {
+      "type": "box",
+      "style": {
+        "height": "auto",
+        "minHeight": 100,
+        "maxHeight": 500
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Dimension Type Implementation
+
+From `crates/htvg-core/src/element.rs:45-64`:
+
+```rust
+pub enum Dimension {
+    Px(f32),
+    Percent(String), // e.g., "50%"
+}
+
+impl Dimension {
+    pub fn to_px(&self, container_size: f32) -> f32 {
+        match self {
+            Dimension::Px(px) => *px,
+            Dimension::Percent(s) => {
+                let percent = s.trim_end_matches('%').parse::<f32>().unwrap_or(0.0);
+                container_size * percent / 100.0
+            }
+        }
+    }
+}
+```
+
+## Spacing Properties
+
+Spacing properties (margin and padding) use a flexible syntax supporting 1-4 values.
+
+### Margin
+
+<ParamField path="margin" type="number | string" default="0">
+  Outer spacing around the element. Syntax:
+  - Single value: `20` - All sides
+  - Two values: `"10 20"` - Vertical, Horizontal
+  - Three values: `"10 20 30"` - Top, Horizontal, Bottom
+  - Four values: `"10 20 30 40"` - Top, Right, Bottom, Left
+</ParamField>
+
+<Tabs>
+  <Tab title="Uniform">
+    ```json
+    {
+      "type": "box",
+      "style": {
+        "margin": 20
+      }
+    }
+    ```
+    All sides get 20px margin.
+  </Tab>
+  <Tab title="Vertical & Horizontal">
+    ```json
+    {
+      "type": "box",
+      "style": {
+        "margin": "10 20"
+      }
+    }
+    ```
+    Top/bottom: 10px, left/right: 20px.
+  </Tab>
+  <Tab title="All Sides">
+    ```json
+    {
+      "type": "box",
+      "style": {
+        "margin": "10 20 30 40"
+      }
+    }
+    ```
+    Top: 10px, right: 20px, bottom: 30px, left: 40px.
+  </Tab>
+</Tabs>
+
+### Padding
+
+<ParamField path="padding" type="number | string" default="0">
+  Inner spacing inside the element. Uses the same syntax as margin.
+</ParamField>
+
+```json
+{
+  "type": "flex",
+  "style": {
+    "padding": "20 32",
+    "backgroundColor": "#ffffff"
+  }
+}
+```
+
+### Spacing Implementation
+
+From `crates/htvg-core/src/element.rs:66-100`:
+
+```rust
+pub enum Spacing {
+    Uniform(f32),
+    Multi(String), // e.g., "10 20" or "10 20 30 40"
+}
+
+impl Spacing {
+    pub fn to_edges(&self) -> [f32; 4] {
+        match self {
+            Spacing::Uniform(v) => [*v, *v, *v, *v],
+            Spacing::Multi(s) => {
+                let parts: Vec<f32> = s
+                    .split_whitespace()
+                    .filter_map(|p| p.parse().ok())
+                    .collect();
+                match parts.len() {
+                    1 => [parts[0], parts[0], parts[0], parts[0]],
+                    2 => [parts[0], parts[1], parts[0], parts[1]], // vertical, horizontal
+                    3 => [parts[0], parts[1], parts[2], parts[1]], // top, horizontal, bottom
+                    4 => [parts[0], parts[1], parts[2], parts[3]], // top, right, bottom, left
+                    _ => [0.0, 0.0, 0.0, 0.0],
+                }
+            }
+        }
+    }
+}
+```
+
+## Visual Properties
+
+### Colors
+
+<ParamField path="backgroundColor" type="string">
+  Background color. Supports:
+  - Hex: `"#fff"`, `"#ffffff"`, `"#ffffffaa"` (with alpha)
+  - RGB: `"rgb(255, 255, 255)"`
+  - RGBA: `"rgba(255, 255, 255, 0.5)"`
+  - Named: `"red"`, `"blue"`, `"green"`, `"black"`, `"white"`, `"transparent"`
+</ParamField>
+
+<ParamField path="borderColor" type="string">
+  Border color (same format as backgroundColor)
+</ParamField>
+
+<ParamField path="color" type="string" default="#000000">
+  Text color for Text elements
+</ParamField>
+
+<Tabs>
+  <Tab title="Hex Colors">
+    ```json
+    {
+      "type": "box",
+      "style": {
+        "backgroundColor": "#2563eb",
+        "borderColor": "#1e40af"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="RGB/RGBA">
+    ```json
+    {
+      "type": "box",
+      "style": {
+        "backgroundColor": "rgba(37, 99, 235, 0.8)"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Named Colors">
+    ```json
+    {
+      "type": "text",
+      "content": "Red text",
+      "style": {
+        "color": "red"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Color Implementation
+
+From `crates/htvg-core/src/element.rs:141-240`:
+
+```rust
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+impl Color {
+    pub const TRANSPARENT: Self = Self { r: 0, g: 0, b: 0, a: 0 };
+    pub const BLACK: Self = Self { r: 0, g: 0, b: 0, a: 255 };
+    pub const WHITE: Self = Self { r: 255, g: 255, b: 255, a: 255 };
+
+    pub fn parse(s: &str) -> Option<Self> {
+        // Supports:
+        // - Hex: #RGB, #RRGGBB, #RRGGBBAA
+        // - rgb(r, g, b) / rgba(r, g, b, a)
+        // - Named colors
+    }
+
+    pub fn to_css(&self) -> String {
+        if self.a == 255 {
+            format!("#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+        } else if self.a == 0 {
+            "none".to_string()
+        } else {
+            format!("rgba({},{},{},{:.3})", self.r, self.g, self.b, self.a as f32 / 255.0)
+        }
+    }
+}
+```
+
+### Borders
+
+<ParamField path="borderWidth" type="number" default="0">
+  Border thickness in pixels
+</ParamField>
+
+<ParamField path="borderRadius" type="number | string" default="0">
+  Corner radius. Syntax:
+  - Single value: `8` - All corners
+  - Two values: `"8 4"` - Top-left/bottom-right, top-right/bottom-left
+  - Four values: `"8 8 0 0"` - Top-left, top-right, bottom-right, bottom-left
+</ParamField>
+
+<Tabs>
+  <Tab title="Uniform Radius">
+    ```json
+    {
+      "type": "box",
+      "style": {
+        "backgroundColor": "#ffffff",
+        "borderWidth": 1,
+        "borderColor": "#e0e0e0",
+        "borderRadius": 12
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Custom Corners">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "backgroundColor": "#22c55e",
+        "borderRadius": "16 16 0 0",
+        "padding": "6 14"
+      }
+    }
+    ```
+    Rounded top corners only.
+  </Tab>
+</Tabs>
+
+### Opacity
+
+<ParamField path="opacity" type="number" default="1">
+  Element opacity from 0 (fully transparent) to 1 (fully opaque)
+</ParamField>
+
+```json
+{
+  "type": "box",
+  "style": {
+    "backgroundColor": "#000000",
+    "opacity": 0.5
+  }
+}
+```
+
+## Flexbox Properties
+
+Flex properties control layout behavior for Flex containers and their children.
+
+### Container Properties
+
+These properties are available on `flex` elements:
+
+<ParamField path="flexDirection" type="string" default="row">
+  Primary axis direction:
+  - `"row"` - Left to right
+  - `"column"` - Top to bottom
+  - `"row-reverse"` - Right to left
+  - `"column-reverse"` - Bottom to top
+</ParamField>
+
+<ParamField path="justifyContent" type="string" default="flex-start">
+  Main axis alignment:
+  - `"flex-start"` - Pack to start
+  - `"flex-end"` - Pack to end
+  - `"center"` - Center items
+  - `"space-between"` - Space between items
+  - `"space-around"` - Space around items
+  - `"space-evenly"` - Evenly distributed space
+</ParamField>
+
+<ParamField path="alignItems" type="string" default="stretch">
+  Cross axis alignment:
+  - `"flex-start"` - Align to start
+  - `"flex-end"` - Align to end
+  - `"center"` - Center items
+  - `"stretch"` - Stretch to fill
+  - `"baseline"` - Align text baselines
+</ParamField>
+
+<ParamField path="gap" type="number" default="0">
+  Space between flex items in pixels
+</ParamField>
+
+<ParamField path="flexWrap" type="string" default="nowrap">
+  Wrapping behavior:
+  - `"nowrap"` - Single line
+  - `"wrap"` - Multi-line, wrapping as needed
+</ParamField>
+
+<Tabs>
+  <Tab title="Column Layout">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "flexDirection": "column",
+        "gap": 16,
+        "padding": 24
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Centered">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "flexDirection": "column",
+        "justifyContent": "center",
+        "alignItems": "center",
+        "width": 400,
+        "height": 300
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Space Between">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "flexDirection": "row",
+        "justifyContent": "space-between",
+        "alignItems": "center",
+        "width": 500
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Wrapping">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "flexDirection": "row",
+        "flexWrap": "wrap",
+        "gap": 10
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Child Properties
+
+These properties are available on Text and Image elements when inside a Flex container:
+
+<ParamField path="flexGrow" type="number" default="0">
+  Ability to grow. Value of `1` means the element will grow to fill available space.
+</ParamField>
+
+<ParamField path="flexShrink" type="number" default="1">
+  Ability to shrink. Value of `0` prevents shrinking.
+</ParamField>
+
+```json
+{
+  "type": "flex",
+  "style": { "flexDirection": "row", "width": 400 },
+  "children": [
+    {
+      "type": "text",
+      "content": "Flexible",
+      "style": { "flexGrow": 1 }
+    },
+    {
+      "type": "text",
+      "content": "Fixed",
+      "style": { "flexGrow": 0, "flexShrink": 0 }
+    }
+  ]
+}
+```
+
+### Flex Enums
+
+From `crates/htvg-core/src/element.rs:256-304`:
+
+```rust
+#[derive(Debug, Clone, Copy, Default)]
+pub enum FlexDirection {
+    #[default]
+    Row,
+    Column,
+    RowReverse,
+    ColumnReverse,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum JustifyContent {
+    #[default]
+    FlexStart,
+    FlexEnd,
+    Center,
+    SpaceBetween,
+    SpaceAround,
+    SpaceEvenly,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum AlignItems {
+    FlexStart,
+    FlexEnd,
+    Center,
+    #[default]
+    Stretch,
+    Baseline,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum FlexWrap {
+    #[default]
+    Nowrap,
+    Wrap,
+}
+```
+
+## Typography Properties
+
+These properties are specific to Text elements.
+
+<ParamField path="fontFamily" type="string" default="sans-serif">
+  Font family name
+</ParamField>
+
+<ParamField path="fontSize" type="number" default="16">
+  Font size in pixels
+</ParamField>
+
+<ParamField path="fontWeight" type="number | string" default="400">
+  Font weight:
+  - Number: 100-900 (100, 200, 300, 400, 500, 600, 700, 800, 900)
+  - Keyword: `"normal"` (400), `"bold"` (700)
+</ParamField>
+
+<ParamField path="lineHeight" type="number" default="1.2">
+  Line height as a multiplier of font size
+</ParamField>
+
+<ParamField path="textAlign" type="string" default="left">
+  Text alignment:
+  - `"left"` - Left-aligned
+  - `"center"` - Centered
+  - `"right"` - Right-aligned
+  - `"justify"` - Justified (stretched to fill)
+</ParamField>
+
+<ParamField path="letterSpacing" type="number" default="0">
+  Additional space between characters in pixels
+</ParamField>
+
+<ParamField path="textRendering" type="string" default="text">
+  Rendering mode:
+  - `"text"` - Render as SVG `<text>` elements
+  - `"vector"` - Render as vector paths (planned feature)
+</ParamField>
+
+<Tabs>
+  <Tab title="Heading">
+    ```json
+    {
+      "type": "text",
+      "content": "Card Title",
+      "style": {
+        "fontSize": 20,
+        "fontWeight": 700,
+        "color": "#1a1a1a"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Body Text">
+    ```json
+    {
+      "type": "text",
+      "content": "This is body text with increased line height for readability.",
+      "style": {
+        "fontSize": 14,
+        "lineHeight": 1.5,
+        "color": "#555555"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Centered">
+    ```json
+    {
+      "type": "text",
+      "content": "Centered Text",
+      "style": {
+        "fontSize": 24,
+        "fontWeight": "bold",
+        "textAlign": "center",
+        "color": "#1a1a1a"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Font Weight Implementation
+
+From `crates/htvg-core/src/element.rs:333-367`:
+
+```rust
+pub struct FontWeight(pub u16);
+
+impl Default for FontWeight {
+    fn default() -> Self {
+        Self(400)
+    }
+}
+
+// Deserializes from number or string:
+// - Number: 100-900
+// - "normal" -> 400
+// - "bold" -> 700
+```
+
+## Image Properties
+
+<ParamField path="objectFit" type="string" default="contain">
+  How the image fits within its bounds:
+  - `"contain"` - Scale to fit, preserving aspect ratio
+  - `"cover"` - Scale to cover, preserving aspect ratio (may crop)
+  - `"fill"` - Stretch to fill exactly
+</ParamField>
+
+<Tabs>
+  <Tab title="Contain">
+    ```json
+    {
+      "type": "image",
+      "src": "data:image/png;base64,...",
+      "width": 800,
+      "height": 600,
+      "style": {
+        "maxWidth": 400,
+        "objectFit": "contain"
+      }
+    }
+    ```
+    Image scales down to fit 400px width while maintaining aspect ratio.
+  </Tab>
+  <Tab title="Cover">
+    ```json
+    {
+      "type": "image",
+      "src": "https://example.com/photo.jpg",
+      "width": 1200,
+      "height": 800,
+      "style": {
+        "width": 300,
+        "height": 300,
+        "objectFit": "cover",
+        "borderRadius": 8
+      }
+    }
+    ```
+    Image fills 300x300 square, cropping as needed.
+  </Tab>
+</Tabs>
+
+## Display Property
+
+<ParamField path="display" type="string">
+  Display mode for Box/Flex elements:
+  - `"block"` - Block display (default for Box)
+  - `"flex"` - Flex display (default for Flex)
+  - `"none"` - Hide element
+</ParamField>
+
+```json
+{
+  "type": "box",
+  "style": {
+    "display": "none"
+  }
+}
+```
+
+<Warning>
+  Setting `display: "none"` will completely remove the element from layout computation.
+</Warning>
+
+## Complete Style Type Definitions
+
+From `crates/htvg-core/src/element.rs:373-478`:
+
+```rust
+// Box elements
+pub struct BoxStyle {
+    pub display: Option<Display>,
+    pub width: Option<Dimension>,
+    pub height: Option<Dimension>,
+    pub min_width: Option<Dimension>,
+    pub max_width: Option<Dimension>,
+    pub min_height: Option<Dimension>,
+    pub max_height: Option<Dimension>,
+    pub margin: Option<Spacing>,
+    pub padding: Option<Spacing>,
+    pub background_color: Option<Color>,
+    pub border_width: Option<f32>,
+    pub border_color: Option<Color>,
+    pub border_radius: Option<BorderRadius>,
+    pub opacity: Option<f32>,
+}
+
+// Flex elements (extends BoxStyle properties)
+pub struct FlexStyle {
+    // All BoxStyle properties plus:
+    pub flex_direction: Option<FlexDirection>,
+    pub justify_content: Option<JustifyContent>,
+    pub align_items: Option<AlignItems>,
+    pub gap: Option<f32>,
+    pub flex_wrap: Option<FlexWrap>,
+}
+
+// Text elements
+pub struct TextStyle {
+    pub font_family: Option<String>,
+    pub font_size: Option<f32>,
+    pub font_weight: Option<FontWeight>,
+    pub line_height: Option<f32>,
+    pub text_align: Option<TextAlign>,
+    pub color: Option<Color>,
+    pub letter_spacing: Option<f32>,
+    pub text_rendering: Option<TextRendering>,
+    pub flex_grow: Option<f32>,
+    pub flex_shrink: Option<f32>,
+}
+
+// Image elements
+pub struct ImageStyle {
+    pub width: Option<Dimension>,
+    pub height: Option<Dimension>,
+    pub min_width: Option<Dimension>,
+    pub max_width: Option<Dimension>,
+    pub min_height: Option<Dimension>,
+    pub max_height: Option<Dimension>,
+    pub margin: Option<Spacing>,
+    pub object_fit: Option<ObjectFit>,
+    pub border_radius: Option<BorderRadius>,
+    pub opacity: Option<f32>,
+    pub flex_grow: Option<f32>,
+    pub flex_shrink: Option<f32>,
+}
+```
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Element Types" icon="shapes" href="/concepts/element-types">
+    Learn about Box, Flex, Text, and Image elements
+  </Card>
+  <Card title="Layout Engine" icon="grid" href="/concepts/layout-engine">
+    How Taffy computes layout with these properties
+  </Card>
+</CardGroup>

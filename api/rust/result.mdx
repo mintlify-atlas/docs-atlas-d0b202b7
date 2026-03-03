@@ -1,0 +1,237 @@
+---
+title: "Compilation Results"
+description: "Return types from HTVG compilation: CompileResult and CompileError"
+---
+
+HTVG compilation functions return a `Result<CompileResult, CompileError>` to indicate success or failure.
+
+## CompileResult
+
+Successful compilation result containing the generated SVG and metadata.
+
+```rust
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompileResult {
+    /// Generated SVG string
+    pub svg: String,
+    /// Computed width
+    pub width: f32,
+    /// Computed height
+    pub height: f32,
+    /// Any warnings during compilation
+    pub warnings: Vec<String>,
+}
+```
+
+### Fields
+
+<ResponseField name="svg" type="String">
+  The complete SVG string ready to be rendered or saved. Includes embedded fonts (if provided), styles, and all visual elements.
+</ResponseField>
+
+<ResponseField name="width" type="f32">
+  The computed width of the SVG in pixels. This matches the `width` specified in `CompileOptions`.
+</ResponseField>
+
+<ResponseField name="height" type="f32">
+  The computed height of the SVG in pixels. If `height` was `None` in `CompileOptions`, this is auto-computed based on content.
+</ResponseField>
+
+<ResponseField name="warnings" type="Vec<String>">
+  List of warning messages generated during compilation. These are non-fatal issues that don't prevent SVG generation.
+</ResponseField>
+
+### Example
+
+```rust
+use htvg::{compile, CompileOptions};
+
+let json = r###"{
+    "type": "flex",
+    "style": { "width": 400, "padding": 20, "backgroundColor": "#ffffff" },
+    "children": [
+        {
+            "type": "text",
+            "content": "Hello World",
+            "style": { "fontSize": 24, "color": "#333333" }
+        }
+    ]
+}"###;
+
+let options = CompileOptions {
+    width: 400.0,
+    ..CompileOptions::default()
+};
+
+let result = compile(json, &options)?;
+
+println!("SVG dimensions: {}x{}", result.width, result.height);
+println!("Warnings: {:?}", result.warnings);
+
+// Save or return the SVG
+std::fs::write("output.svg", result.svg)?;
+```
+
+### SVG Output
+
+The generated `svg` field contains a complete, standalone SVG document:
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="64" viewBox="0 0 400 64">
+  <defs>
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        src: url('https://example.com/inter.woff2') format('woff2');
+        font-weight: 400;
+      }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="400" height="64" fill="#ffffff" />
+  <text x="20" y="44" font-size="24" fill="#333333">Hello World</text>
+</svg>
+```
+
+<Note>
+  The SVG output is optimized for direct use in browsers, image processing tools, or embedding in HTML/PDF documents.
+</Note>
+
+---
+
+## CompileError
+
+Error type returned when compilation fails.
+
+```rust
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompileError {
+    pub message: String,
+    pub kind: String,
+}
+```
+
+### Fields
+
+<ResponseField name="message" type="String">
+  Human-readable error message describing what went wrong.
+</ResponseField>
+
+<ResponseField name="kind" type="String">
+  Error category for programmatic error handling. See [Error Kinds](#error-kinds) below.
+</ResponseField>
+
+### Error Kinds
+
+The `kind` field indicates the type of error:
+
+<ResponseField name="parse_error">
+  Invalid JSON or element structure. Occurs when:
+  - JSON is malformed
+  - Element type is unrecognized
+  - Required fields are missing
+  - Field types don't match schema
+</ResponseField>
+
+<ResponseField name="layout_error">
+  Layout computation failed. Occurs when:
+  - Invalid dimension constraints
+  - Circular dependencies in layout
+  - Unsupported layout combinations
+</ResponseField>
+
+<ResponseField name="font_error">
+  Font-related error. Occurs when:
+  - Base64 font data is invalid
+  - Font data cannot be decoded
+  - Font format is unsupported
+</ResponseField>
+
+### Error Trait Implementation
+
+`CompileError` implements `std::fmt::Display` and `std::error::Error`:
+
+```rust
+impl std::fmt::Display for CompileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.kind, self.message)
+    }
+}
+
+impl std::error::Error for CompileError {}
+```
+
+### Example: Error Handling
+
+```rust
+use htvg::{compile, CompileOptions, CompileError};
+
+let json = "not valid json";
+let options = CompileOptions::default();
+
+match compile(json, &options) {
+    Ok(result) => {
+        println!("Success: {}x{}", result.width, result.height);
+    }
+    Err(error) => {
+        match error.kind.as_str() {
+            "parse_error" => {
+                eprintln!("Invalid JSON: {}", error.message);
+            }
+            "layout_error" => {
+                eprintln!("Layout failed: {}", error.message);
+            }
+            "font_error" => {
+                eprintln!("Font error: {}", error.message);
+            }
+            _ => {
+                eprintln!("Unknown error: {}", error);
+            }
+        }
+    }
+}
+```
+
+### Example: Parse Error
+
+```rust
+let result = compile("invalid json", &CompileOptions::default());
+assert!(result.is_err());
+
+let error = result.unwrap_err();
+assert_eq!(error.kind, "parse_error");
+assert!(error.message.contains("expected"));
+```
+
+### Example: Font Error
+
+```rust
+use htvg::{compile_element, CompileOptions, FontSource, Element};
+
+let options = CompileOptions {
+    fonts: vec![FontSource {
+        family: "Test".to_string(),
+        data: Some("not-valid-base64!!!".to_string()),
+        weight: 400,
+        url: None,
+    }],
+    ..CompileOptions::default()
+};
+
+let element: Element = serde_json::from_str(r###"{
+    "type": "text",
+    "content": "Test"
+}"###).unwrap();
+
+let result = compile_element(&element, &options);
+assert!(result.is_err());
+
+let error = result.unwrap_err();
+assert_eq!(error.kind, "font_error");
+assert!(error.message.contains("Invalid base64"));
+```
+
+<Tip>
+  Use the `kind` field for programmatic error handling and the `message` field for user-facing error messages or logging.
+</Tip>

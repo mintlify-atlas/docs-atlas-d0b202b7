@@ -1,0 +1,264 @@
+---
+title: "Compile Options"
+description: "Configuration types for HTVG compilation: CompileOptions, FontSource, and HtvgDocument"
+---
+
+Configuration structures for customizing the HTVG compilation process.
+
+## CompileOptions
+
+Main compilation options passed to `compile()` and `compile_element()`.
+
+```rust
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompileOptions {
+    /// Output width in pixels
+    pub width: f32,
+    /// Output height in pixels (auto-computed if not specified)
+    pub height: Option<f32>,
+    /// Default font size (default: 16)
+    pub font_size: f32,
+    /// Font family applied to text elements without an explicit fontFamily
+    pub font_family: Option<String>,
+    /// Fonts to register
+    pub fonts: Vec<FontSource>,
+}
+```
+
+### Fields
+
+<ParamField path="width" type="f32" required>
+  Output width in pixels. This sets the SVG viewport width.
+</ParamField>
+
+<ParamField path="height" type="Option<f32>" default="None">
+  Output height in pixels. If `None`, height is automatically computed based on content.
+</ParamField>
+
+<ParamField path="font_size" type="f32" default="16.0">
+  Default font size in pixels for text elements that don't specify `fontSize` in their style.
+</ParamField>
+
+<ParamField path="font_family" type="Option<String>" default="None">
+  Default font family applied to text elements without an explicit `fontFamily` in their style.
+</ParamField>
+
+<ParamField path="fonts" type="Vec<FontSource>" default="[]">
+  List of fonts to register for text layout and rendering. See [FontSource](#fontsource) below.
+</ParamField>
+
+### Default Values
+
+```rust
+impl Default for CompileOptions {
+    fn default() -> Self {
+        Self {
+            width: 800.0,
+            height: None,
+            font_size: 16.0,
+            font_family: None,
+            fonts: Vec::new(),
+        }
+    }
+}
+```
+
+### Example
+
+```rust
+use htvg::{CompileOptions, FontSource};
+
+let options = CompileOptions {
+    width: 1200.0,
+    height: Some(630.0),
+    font_size: 18.0,
+    font_family: Some("Inter".to_string()),
+    fonts: vec![
+        FontSource {
+            family: "Inter".to_string(),
+            url: Some("https://example.com/inter-regular.woff2".to_string()),
+            weight: 400,
+            data: None,
+        },
+        FontSource {
+            family: "Inter".to_string(),
+            url: Some("https://example.com/inter-bold.woff2".to_string()),
+            weight: 700,
+            data: None,
+        },
+    ],
+};
+```
+
+---
+
+## FontSource
+
+Font registration structure for embedding fonts in SVG and enabling accurate text layout.
+
+```rust
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FontSource {
+    /// Font family name (used in SVG @font-face and as identifier)
+    pub family: String,
+    /// URL to the font file — emitted as @font-face src in the SVG
+    pub url: Option<String>,
+    /// Font weight (default: 400)
+    pub weight: u16,
+    /// Base64-encoded font data (TTF/OTF/WOFF2) — used for text layout
+    pub data: Option<String>,
+}
+```
+
+### Fields
+
+<ParamField path="family" type="String" required>
+  Font family name. This is used in the SVG `@font-face` declaration and as an identifier for text elements.
+</ParamField>
+
+<ParamField path="url" type="Option<String>" default="None">
+  URL to the font file. This is emitted as the `src` in the SVG `@font-face` rule.
+  
+  Example: `"https://example.com/fonts/inter-regular.woff2"`
+</ParamField>
+
+<ParamField path="weight" type="u16" default="400">
+  Font weight (100-900). Common values:
+  - 100: Thin
+  - 400: Normal/Regular
+  - 700: Bold
+  - 900: Black
+</ParamField>
+
+<ParamField path="data" type="Option<String>" default="None">
+  Base64-encoded font data (TTF, OTF, or WOFF2 format). Used by the text layout engine to measure text accurately.
+  
+  **Note:** The `data` field is primarily used by the CLI. The WASM target falls back to approximate layout if font data is not provided.
+</ParamField>
+
+### Usage Notes
+
+1. **Font Embedding**: The `url` field creates an `@font-face` rule in the SVG, allowing the font to be loaded when the SVG is rendered.
+
+2. **Text Layout**: The `data` field enables accurate text measurement during compilation. Without it, HTVG uses approximate metrics.
+
+3. **Multiple Weights**: Register each font weight/style combination as a separate `FontSource` with the same `family` name.
+
+### Example
+
+```rust
+use htvg::FontSource;
+
+let font = FontSource {
+    family: "Roboto".to_string(),
+    url: Some("https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2".to_string()),
+    weight: 400,
+    data: None,
+};
+```
+
+### JSON Example
+
+```json
+{
+  "family": "Inter",
+  "url": "https://example.com/inter-bold.woff2",
+  "weight": 700,
+  "data": "AAEAAAAOAIAAAwBgT1MvM..." 
+}
+```
+
+---
+
+## HtvgDocument
+
+A self-contained HTVG document combining metadata (compile options) and content (element tree).
+
+```rust
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HtvgDocument {
+    /// Compilation options (width, height, etc.)
+    #[serde(default)]
+    pub meta: CompileOptions,
+    /// The element tree to render
+    pub content: Element,
+}
+```
+
+### Fields
+
+<ParamField path="meta" type="CompileOptions" default="CompileOptions::default()">
+  Compilation options including width, height, fonts, and defaults.
+</ParamField>
+
+<ParamField path="content" type="Element" required>
+  The root element of the graphic (Box, Flex, Text, or Image).
+</ParamField>
+
+### Usage
+
+Use `HtvgDocument` with the `compile_document()` function for a complete, self-describing format:
+
+```rust
+use htvg::compile_document;
+
+let doc_json = r###"{
+    "meta": {
+        "width": 800,
+        "height": 600,
+        "fontSize": 18,
+        "fontFamily": "Inter",
+        "fonts": [
+            {
+                "family": "Inter",
+                "url": "https://example.com/inter.woff2",
+                "weight": 400
+            }
+        ]
+    },
+    "content": {
+        "type": "flex",
+        "style": {
+            "flexDirection": "column",
+            "padding": 40,
+            "backgroundColor": "#ffffff"
+        },
+        "children": [
+            {
+                "type": "text",
+                "content": "Hello HTVG",
+                "style": { "fontSize": 32, "fontWeight": "bold" }
+            }
+        ]
+    }
+}"###;
+
+let result = compile_document(doc_json)?;
+println!("{}", result.svg);
+```
+
+### Document Structure
+
+The `HtvgDocument` format is the recommended way to store complete HTVG graphics:
+
+```json
+{
+  "meta": {
+    "width": 1200,
+    "height": 630,
+    "fontSize": 16,
+    "fontFamily": "system-ui"
+  },
+  "content": {
+    "type": "box",
+    "children": [...]
+  }
+}
+```
+
+<Tip>
+  The `meta` field is optional and defaults to `CompileOptions::default()` if omitted. Only `content` is required.
+</Tip>

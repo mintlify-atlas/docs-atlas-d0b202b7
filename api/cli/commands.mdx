@@ -1,0 +1,161 @@
+---
+title: CLI Commands
+description: Complete reference for all HTVG CLI commands
+---
+
+The HTVG CLI provides commands for compiling JSON element trees into SVG graphics.
+
+## compile
+
+Compile an HTVG document to SVG format.
+
+```bash
+htvg compile <input> [OPTIONS]
+```
+
+<ParamField path="input" type="string" required>
+  Input JSON file path. Can be either:
+  - A self-contained document with `meta` and `content` fields
+  - A bare element tree (uses default metadata)
+</ParamField>
+
+### Options
+
+<ParamField path="--output" type="string" default="stdout">
+  Output SVG file path. If not specified, outputs to stdout.
+  
+  **Aliases:** `-o`
+</ParamField>
+
+<ParamField path="--width" type="number" default="800">
+  Override the output width in pixels. Takes precedence over width specified in document metadata.
+  
+  **Aliases:** `-w`
+</ParamField>
+
+<ParamField path="--pretty" type="boolean" default="false">
+  Pretty-print the SVG output with indentation and line breaks.
+</ParamField>
+
+### Examples
+
+**Compile to stdout:**
+
+```bash
+htvg compile input.json
+```
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">...</svg>
+```
+
+**Compile to file:**
+
+```bash
+htvg compile input.json --output output.svg
+```
+
+```
+Wrote output.svg (800x600)
+```
+
+**Override width:**
+
+```bash
+htvg compile input.json -w 1200 -o wide.svg
+```
+
+```
+Wrote wide.svg (1200x900)
+```
+
+**Pretty-print output:**
+
+```bash
+htvg compile input.json --pretty
+```
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <rect x="0" y="0" width="100" height="100" fill="#ff0000"/>
+</svg>
+```
+
+### Input Format
+
+**Self-contained document:**
+
+```json
+{
+  "meta": {
+    "width": 800
+  },
+  "content": {
+    "type": "rect",
+    "width": 100,
+    "height": 100
+  }
+}
+```
+
+**Bare element (fallback):**
+
+```json
+{
+  "type": "rect",
+  "width": 100,
+  "height": 100
+}
+```
+
+### Error Handling
+
+The command exits with status code 1 on errors:
+
+```bash
+htvg compile nonexistent.json
+```
+
+```
+Error reading nonexistent.json: No such file or directory
+```
+
+```bash
+htvg compile invalid.json
+```
+
+```
+Compile error: unexpected token at line 1 column 5
+```
+
+## version
+
+Print version information.
+
+```bash
+htvg version
+```
+
+```
+htvg 0.1.0
+```
+
+### Examples
+
+```bash
+htvg version
+```
+
+```
+htvg 0.1.0
+```
+
+Alternatively, use the standard `--version` flag:
+
+```bash
+htvg --version
+```
+
+```
+htvg 0.1.0
+```

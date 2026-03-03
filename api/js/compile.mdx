@@ -1,0 +1,354 @@
+---
+title: "compile() & compileDocument()"
+description: "Compile HTVG element trees and documents to SVG"
+---
+
+## compileDocument()
+
+Compile a self-contained HTVG document to SVG. This function accepts a complete document with metadata and content in a single object.
+
+```typescript
+function compileDocument(doc: HtvgDocument | string): CompileResult
+```
+
+<ParamField path="doc" type="HtvgDocument | string" required>
+  A complete HTVG document object or JSON string containing:
+  - `meta`: Compilation options (width, height, fonts, etc.)
+  - `content`: The root element tree to render
+</ParamField>
+
+<ResponseField name="CompileResult" type="object">
+  <ResponseField name="svg" type="string">
+    Generated SVG string
+  </ResponseField>
+  <ResponseField name="width" type="number">
+    Computed output width in pixels
+  </ResponseField>
+  <ResponseField name="height" type="number">
+    Computed output height in pixels
+  </ResponseField>
+  <ResponseField name="warnings" type="string[]">
+    Array of warning messages from compilation
+  </ResponseField>
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+```javascript Browser
+import { init, compileDocument } from "htvg";
+
+await init();
+
+const result = compileDocument({
+  meta: { 
+    width: 400,
+    fonts: [
+      { family: "Inter", url: "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2" }
+    ]
+  },
+  content: {
+    type: "flex",
+    style: { 
+      width: 400, 
+      padding: 20, 
+      backgroundColor: "#ffffff", 
+      flexDirection: "column", 
+      gap: 12 
+    },
+    children: [
+      { 
+        type: "text", 
+        content: "Hello, HTVG!", 
+        style: { fontSize: 24, fontWeight: "bold", color: "#1a1a1a" } 
+      },
+      { 
+        type: "text", 
+        content: "JSON to SVG, simple as that.", 
+        style: { fontSize: 14, color: "#666" } 
+      },
+    ],
+  },
+});
+
+console.log(result.svg);    // SVG markup
+console.log(result.width);  // 400
+console.log(result.height); // auto-computed
+```
+
+```javascript Node.js
+import { init, compileDocument } from "htvg";
+import fs from "node:fs";
+
+// Initialize with WASM binary
+await init(fs.readFileSync("node_modules/htvg/dist/wasm/htvg_bg.wasm"));
+
+const result = compileDocument({
+  meta: { width: 600 },
+  content: {
+    type: "flex",
+    style: { 
+      flexDirection: "column", 
+      gap: 16,
+      padding: 24,
+      backgroundColor: "#f5f5f5"
+    },
+    children: [
+      { 
+        type: "text", 
+        content: "Server-side SVG generation", 
+        style: { fontSize: 32, fontWeight: 700 } 
+      },
+      { 
+        type: "text", 
+        content: "Perfect for dynamic image generation", 
+        style: { fontSize: 16, color: "#666666" } 
+      },
+    ],
+  },
+});
+
+// Write to file
+fs.writeFileSync("output.svg", result.svg);
+```
+
+```javascript Cloudflare Workers
+import { init, compileDocument } from "htvg";
+import wasmModule from "htvg/htvg.wasm";
+
+export default {
+  async fetch(request) {
+    await init(wasmModule);
+
+    const result = compileDocument({
+      meta: { width: 800, height: 400 },
+      content: {
+        type: "flex",
+        style: {
+          width: 800,
+          height: 400,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#4f46e5"
+        },
+        children: [
+          { 
+            type: "text", 
+            content: "Generated at the Edge", 
+            style: { fontSize: 48, fontWeight: "bold", color: "#ffffff" } 
+          },
+        ],
+      },
+    });
+
+    return new Response(result.svg, {
+      headers: { "Content-Type": "image/svg+xml" },
+    });
+  },
+};
+```
+</CodeGroup>
+
+### Using JSON strings
+
+You can also pass a JSON string directly:
+
+```javascript
+const docJson = JSON.stringify({
+  meta: { width: 400 },
+  content: {
+    type: "text",
+    content: "Hello",
+    style: { fontSize: 32 }
+  }
+});
+
+const result = compileDocument(docJson);
+```
+
+---
+
+## compile()
+
+Compile an element tree with separate options. This is useful when you want to reuse the same element tree with different compilation settings.
+
+```typescript
+function compile(
+  element: Element | string,
+  options: CompileOptions
+): CompileResult
+```
+
+<ParamField path="element" type="Element | string" required>
+  The root element tree to render. Can be an Element object or JSON string.
+</ParamField>
+
+<ParamField path="options" type="CompileOptions" required>
+  Compilation options object:
+  - `width` (number, required): Output width in pixels
+  - `height` (number, optional): Output height in pixels (auto-computed if omitted)
+  - `fontSize` (number, optional): Default font size (default: 16)
+  - `fontFamily` (string, optional): Default font family for text elements
+  - `fonts` (FontSource[], optional): Custom fonts to register
+</ParamField>
+
+<ResponseField name="CompileResult" type="object">
+  Same as `compileDocument()` return value
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+```javascript Browser
+import { init, compile } from "htvg";
+
+await init();
+
+const element = {
+  type: "flex",
+  style: { flexDirection: "column", gap: 8 },
+  children: [
+    { 
+      type: "text", 
+      content: "Title", 
+      style: { fontSize: 20, fontWeight: 700 } 
+    },
+    { 
+      type: "text", 
+      content: "Subtitle", 
+      style: { fontSize: 14, color: "#666" } 
+    },
+  ],
+};
+
+// Compile with different widths
+const small = compile(element, { width: 300 });
+const large = compile(element, { width: 800 });
+```
+
+```javascript Node.js
+import { init, compile } from "htvg";
+import fs from "node:fs";
+
+await init(fs.readFileSync("node_modules/htvg/dist/wasm/htvg_bg.wasm"));
+
+const element = {
+  type: "flex",
+  style: { 
+    padding: 24,
+    backgroundColor: "#ffffff",
+    flexDirection: "column",
+    gap: 12
+  },
+  children: [
+    { type: "text", content: "Dynamic Content", style: { fontSize: 28 } },
+    { type: "text", content: "Generated on the server", style: { fontSize: 16 } },
+  ],
+};
+
+const options = {
+  width: 600,
+  fontFamily: "Arial",
+  fontSize: 16,
+};
+
+const result = compile(element, options);
+fs.writeFileSync("output.svg", result.svg);
+```
+
+```javascript Cloudflare Workers
+import { init, compile } from "htvg";
+import wasmModule from "htvg/htvg.wasm";
+
+let initialized = false;
+
+export default {
+  async fetch(request) {
+    if (!initialized) {
+      await init(wasmModule);
+      initialized = true;
+    }
+
+    const url = new URL(request.url);
+    const width = parseInt(url.searchParams.get("width") || "800");
+
+    const element = {
+      type: "flex",
+      style: {
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#10b981",
+        padding: 32
+      },
+      children: [
+        { 
+          type: "text", 
+          content: `Width: ${width}px`, 
+          style: { fontSize: 36, fontWeight: "bold", color: "#ffffff" } 
+        },
+      ],
+    };
+
+    const result = compile(element, { width });
+
+    return new Response(result.svg, {
+      headers: { "Content-Type": "image/svg+xml" },
+    });
+  },
+};
+```
+</CodeGroup>
+
+### With custom fonts
+
+```javascript
+const element = {
+  type: "text",
+  content: "Custom Font Text",
+  style: { 
+    fontSize: 32, 
+    fontFamily: "Inter",
+    fontWeight: 600 
+  }
+};
+
+const result = compile(element, {
+  width: 400,
+  fonts: [
+    {
+      family: "Inter",
+      url: "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2",
+      weight: 600
+    }
+  ]
+});
+```
+
+---
+
+## Error Handling
+
+Both functions throw errors if:
+- WASM module is not initialized (call `init()` first)
+- Invalid JSON format
+- Invalid element structure
+- Missing required fields
+
+```javascript
+try {
+  const result = compileDocument({
+    meta: { width: 400 },
+    content: { type: "text", content: "Hello" }
+  });
+  console.log(result.svg);
+} catch (error) {
+  console.error("Compilation failed:", error.message);
+}
+```
+
+## Performance Tips
+
+- Call `init()` once at application startup
+- Reuse element structures when possible
+- Use `compile()` when rendering the same content at different sizes
+- In serverless environments, initialize WASM outside the request handler when possible

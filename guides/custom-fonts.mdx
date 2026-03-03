@@ -1,0 +1,255 @@
+---
+title: Custom Fonts
+description: Learn how to use custom fonts in HTVG to create beautiful text layouts with web fonts or base64-encoded font data
+---
+
+HTVG supports custom fonts through the `FontSource` interface, allowing you to use web fonts or embedded font data for precise text layout and rendering.
+
+## Font Source Structure
+
+The `FontSource` interface defines how fonts are registered and used in your documents:
+
+```typescript
+interface FontSource {
+  family: string;      // Font family name
+  url?: string;        // URL to font file (for @font-face)
+  weight?: number;     // Font weight (default: 400)
+  data?: string;       // Base64-encoded font data (for layout)
+}
+```
+
+<Note>
+Font URLs are emitted as `@font-face` declarations in the SVG output. The browser or SVG viewer handles loading them.
+</Note>
+
+## Loading Web Fonts
+
+The most common approach is to reference hosted fonts via URL. HTVG embeds these as `@font-face` rules in the generated SVG.
+
+<Steps>
+  <Step title="Add font to document metadata">
+    Include the font in your document's `meta.fonts` array:
+
+    ```json
+    {
+      "meta": {
+        "width": 600,
+        "fonts": [
+          {
+            "family": "Inter",
+            "url": "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2",
+            "weight": 400
+          },
+          {
+            "family": "Inter",
+            "url": "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiA.woff2",
+            "weight": 700
+          }
+        ]
+      },
+      "content": {
+        "type": "text",
+        "content": "Hello with Inter",
+        "style": {
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": 700
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Reference font in text styles">
+    Use the font family name in your text element styles:
+
+    ```json
+    {
+      "type": "text",
+      "content": "Styled text",
+      "style": {
+        "fontFamily": "Inter",
+        "fontSize": 32,
+        "fontWeight": "bold"
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Using Base64 Font Data
+
+For accurate text layout calculations (especially in Node.js or CLI contexts), you can provide base64-encoded font data. This allows HTVG's layout engine to measure text precisely without relying on system fonts.
+
+```typescript
+import fs from "node:fs";
+import { compileDocument, init } from "htvg";
+
+// Read font file
+const fontBuffer = fs.readFileSync("./fonts/Inter-Regular.ttf");
+const fontBase64 = fontBuffer.toString("base64");
+
+await init(fs.readFileSync("node_modules/htvg/dist/wasm/htvg_bg.wasm"));
+
+const result = compileDocument({
+  meta: {
+    width: 500,
+    fonts: [
+      {
+        family: "Inter",
+        url: "https://fonts.gstatic.com/.../Inter-Regular.woff2",
+        weight: 400,
+        data: fontBase64  // Used for text layout calculations
+      }
+    ]
+  },
+  content: {
+    type: "text",
+    content: "Precisely measured text",
+    style: { fontFamily: "Inter", fontSize: 20 }
+  }
+});
+```
+
+<Warning>
+Base64 font data is only used internally for text measurement. The `url` field is still required for the SVG output to reference the actual font file.
+</Warning>
+
+## Font Weight Variants
+
+Define multiple font weights by adding separate `FontSource` entries:
+
+<CodeGroup>
+```json Document with Multiple Weights
+{
+  "meta": {
+    "width": 400,
+    "fonts": [
+      { "family": "Inter", "url": "https://...", "weight": 400 },
+      { "family": "Inter", "url": "https://...", "weight": 600 },
+      { "family": "Inter", "url": "https://...", "weight": 700 }
+    ]
+  },
+  "content": {
+    "type": "flex",
+    "style": { "flexDirection": "column", "gap": 8 },
+    "children": [
+      { "type": "text", "content": "Regular (400)", "style": { "fontFamily": "Inter", "fontWeight": 400 } },
+      { "type": "text", "content": "Semibold (600)", "style": { "fontFamily": "Inter", "fontWeight": 600 } },
+      { "type": "text", "content": "Bold (700)", "style": { "fontFamily": "Inter", "fontWeight": 700 } }
+    ]
+  }
+}
+```
+
+```typescript TypeScript API
+import { compileDocument } from "htvg";
+
+const result = compileDocument({
+  meta: {
+    width: 400,
+    fonts: [
+      { family: "Inter", url: "https://...", weight: 400 },
+      { family: "Inter", url: "https://...", weight: 700 }
+    ]
+  },
+  content: {
+    type: "text",
+    content: "Bold text",
+    style: { fontFamily: "Inter", fontWeight: "bold" }
+  }
+});
+```
+</CodeGroup>
+
+## Default Font Family
+
+Set a default font family that applies to all text elements without an explicit `fontFamily` style:
+
+```json
+{
+  "meta": {
+    "width": 500,
+    "fontFamily": "Inter",
+    "fonts": [
+      { "family": "Inter", "url": "https://..." }
+    ]
+  },
+  "content": {
+    "type": "text",
+    "content": "Uses Inter by default",
+    "style": { "fontSize": 18 }
+  }
+}
+```
+
+## Google Fonts Example
+
+Here's a complete example using Google Fonts:
+
+```typescript
+import { init, compileDocument } from "htvg";
+
+await init();
+
+const result = compileDocument({
+  meta: {
+    width: 600,
+    fontFamily: "Roboto",
+    fonts: [
+      {
+        family: "Roboto",
+        url: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxKKTU1Kg.woff2",
+        weight: 400
+      },
+      {
+        family: "Roboto",
+        url: "https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4AMP6lQ.woff2",
+        weight: 700
+      }
+    ]
+  },
+  content: {
+    type: "flex",
+    style: {
+      padding: 40,
+      backgroundColor: "#ffffff",
+      flexDirection: "column",
+      gap: 16
+    },
+    children: [
+      {
+        type: "text",
+        content: "Welcome to HTVG",
+        style: { fontSize: 32, fontWeight: 700, color: "#1a1a1a" }
+      },
+      {
+        type: "text",
+        content: "This text uses Google Fonts for beautiful typography.",
+        style: { fontSize: 16, color: "#666666" }
+      }
+    ]
+  }
+});
+
+console.log(result.svg);
+```
+
+## Fallback Fonts
+
+If no custom fonts are provided or if font loading fails, HTVG falls back to system fonts for text rendering. However, text layout calculations may be approximate.
+
+<Tip>
+For production use, always provide both `url` (for display) and `data` (for accurate layout) when precise text measurement is critical.
+</Tip>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Text Styling" href="/concepts/element-types" icon="font">
+    Learn about text element properties
+  </Card>
+  <Card title="Compile Options" href="/api/rust/options" icon="gear">
+    Configure compilation settings
+  </Card>
+</CardGroup>

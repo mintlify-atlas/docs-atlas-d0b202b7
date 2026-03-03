@@ -1,0 +1,207 @@
+---
+title: CLI Options & Flags
+description: Global options and command-specific flags for the HTVG CLI
+---
+
+This page documents all available options and flags for the HTVG CLI.
+
+## Global Options
+
+These options are available for all commands.
+
+<ParamField path="--help" type="boolean">
+  Display help information for the CLI or a specific command.
+  
+  **Aliases:** `-h`
+</ParamField>
+
+<ParamField path="--version" type="boolean">
+  Display version information.
+  
+  **Aliases:** `-V`
+</ParamField>
+
+### Examples
+
+**Show general help:**
+
+```bash
+htvg --help
+```
+
+```
+HTVG - JSON element tree to SVG compiler
+
+Usage: htvg <COMMAND>
+
+Commands:
+  compile  Compile an HTVG document to SVG
+  version  Print version info
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+**Show command-specific help:**
+
+```bash
+htvg compile --help
+```
+
+```
+Compile an HTVG document to SVG
+
+Usage: htvg compile [OPTIONS] <INPUT>
+
+Arguments:
+  <INPUT>  Input JSON file (self-contained document with meta + content)
+
+Options:
+  -o, --output <OUTPUT>  Output SVG file (defaults to stdout)
+  -w, --width <WIDTH>    Override output width
+      --pretty           Pretty-print the SVG output
+  -h, --help             Print help
+```
+
+**Check version:**
+
+```bash
+htvg --version
+```
+
+```
+htvg 0.1.0
+```
+
+## compile Options
+
+Options specific to the `compile` command.
+
+<ParamField path="--output" type="string" default="stdout">
+  Specify the output file path for the generated SVG.
+  
+  **Aliases:** `-o`
+  
+  **Default behavior:** When not specified, outputs to stdout, which allows piping to other commands.
+</ParamField>
+
+<ParamField path="--width" type="number" default="800">
+  Override the output width in pixels.
+  
+  **Aliases:** `-w`
+  
+  **Default behavior:** 
+  - For self-contained documents: Uses width from `meta` field if not overridden
+  - For bare elements: Defaults to 800 pixels
+  - CLI flag takes precedence over document metadata
+</ParamField>
+
+<ParamField path="--pretty" type="boolean" default="false">
+  Format the SVG output with indentation and line breaks for human readability.
+  
+  **Default behavior:** Outputs minified SVG without extra whitespace.
+</ParamField>
+
+### Option Interactions
+
+**Width precedence:**
+
+The `--width` flag overrides the width specified in document metadata:
+
+```bash
+# Document has meta.width = 800
+htvg compile doc.json --width 1200
+# Output will be 1200px wide, not 800px
+```
+
+**Output redirection:**
+
+When using `--output`, progress information is written to stderr:
+
+```bash
+htvg compile input.json -o output.svg
+```
+
+```
+Wrote output.svg (800x600)
+```
+
+When outputting to stdout, only the SVG is written (to stdout):
+
+```bash
+htvg compile input.json > output.svg
+# No progress message, just the SVG content
+```
+
+### Examples
+
+**Combine multiple options:**
+
+```bash
+htvg compile input.json --width 1920 --output poster.svg --pretty
+```
+
+```
+Wrote poster.svg (1920x1080)
+```
+
+**Pipe to other commands:**
+
+```bash
+htvg compile input.json | xmllint --format -
+```
+
+**Short flags:**
+
+```bash
+htvg compile input.json -w 1200 -o output.svg
+```
+
+```
+Wrote output.svg (1200x900)
+```
+
+## Default Values Summary
+
+| Option | Default | Applies To | Notes |
+|--------|---------|------------|---------|
+| `--output` | stdout | compile | Writes to stderr when file path is specified |
+| `--width` | 800 | compile | For bare elements; self-contained docs use meta.width |
+| `--pretty` | false | compile | Minified output by default |
+
+## Exit Codes
+
+The HTVG CLI uses standard exit codes:
+
+| Code | Meaning | Example |
+|------|---------|----------|
+| 0 | Success | Compilation completed without errors |
+| 1 | Error | File not found, invalid JSON, compilation failure |
+
+### Examples
+
+**Success:**
+
+```bash
+htvg compile input.json -o output.svg
+echo $?
+```
+
+```
+Wrote output.svg (800x600)
+0
+```
+
+**Error:**
+
+```bash
+htvg compile missing.json
+echo $?
+```
+
+```
+Error reading missing.json: No such file or directory
+1
+```

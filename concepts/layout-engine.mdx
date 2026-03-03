@@ -1,0 +1,482 @@
+---
+title: Layout Engine
+description: How HTVG uses Taffy to compute CSS Flexbox layout for element positioning
+---
+
+HTVG uses [Taffy](https://github.com/DioxusLabs/taffy), a high-performance CSS layout engine written in Rust, to compute the position and size of all elements before rendering to SVG.
+
+## Overview
+
+The layout engine transforms the element tree into positioned boxes ready for SVG rendering.
+
+<Steps>
+  <Step title="Build Layout Tree">
+    Convert HTVG elements into Taffy layout nodes
+  </Step>
+  <Step title="Attach Measurement Functions">
+    Provide text and image measurement callbacks
+  </Step>
+  <Step title="Compute Layout">
+    Taffy calculates final positions and sizes
+  </Step>
+  <Step title="Extract Results">
+    Read computed layout for SVG generation
+  </Step>
+</Steps>
+
+## Taffy Integration
+
+Taffy is a pure Rust implementation of CSS Box Model, Flexbox, and (experimentally) Grid layout algorithms. HTVG uses Taffy's Flexbox engine exclusively.
+
+### Why Taffy?
+
+<CardGroup cols={2}>
+  <Card title="Correct Layout" icon="check-circle">
+    Industry-standard CSS layout algorithms
+  </Card>
+  <Card title="High Performance" icon="gauge-high">
+    Optimized Rust implementation
+  </Card>
+  <Card title="WASM Compatible" icon="globe">
+    Runs in browsers and edge runtimes
+  </Card>
+  <Card title="Well Tested" icon="vial">
+    Extensive test suite from yoga/flexbox spec
+  </Card>
+</CardGroup>
+
+## Layout Process
+
+The layout engine is implemented in `crates/htvg-core/src/layout.rs`. Here's how it works:
+
+### 1. Building the Layout Tree
+
+Each HTVG element is converted to a Taffy node:
+
+```rust
+pub struct LayoutEngine {
+    pub text_engine: TextLayoutEngine,
+}
+
+impl LayoutEngine {
+    pub fn compute_layout(
+        &mut self,
+        element: &Element,
+        viewport_width: f32,
+        viewport_height: Option<f32>,
+        default_font_family: Option<&str>,
+    ) -> Result<LayoutResult, LayoutError> {
+        let mut taffy: TaffyTree<NodeContext> = TaffyTree::new();
+        let mut node_data = HashMap::new();
+
+        // Build tree recursively
+        let root = self.build_node(&mut taffy, &mut node_data, element, default_font_family)?;
+
+        // ... compute layout
+    }
+}
+```
+
+From `crates/htvg-core/src/layout.rs:116-165`.
+
+### 2. Style Conversion
+
+HTVG styles are converted to Taffy's `Style` struct:
+
+<Tabs>
+  <Tab title="Box Style">
+    ```rust
+    fn box_style_to_taffy(style: &BoxStyle) -> Style {
+        Style {
+            display: match style.display {
+                Some(element::Display::None) => taffy::Display::None,
+                _ => taffy::Display::Block,
+            },
+            size: Size {
+                width: dimension_to_taffy(&style.width),
+                height: dimension_to_taffy(&style.height),
+            },
+            min_size: Size {
+                width: dimension_to_taffy(&style.min_width),
+                height: dimension_to_taffy(&style.min_height),
+            },
+            max_size: Size {
+                width: dimension_to_taffy(&style.max_width),
+                height: dimension_to_taffy(&style.max_height),
+            },
+            margin: spacing_to_taffy_rect(&style.margin),
+            padding: spacing_to_taffy_rect_lp(&style.padding),
+            border: spacing_to_taffy_rect_lp(&style.border_width.map(Spacing::Uniform)),
+            ..Default::default()
+        }
+    }
+    ```
+    From `crates/htvg-core/src/layout.rs:359-382`.
+  </Tab>
+  <Tab title="Flex Style">
+    ```rust
+    fn flex_style_to_taffy(style: &FlexStyle) -> Style {
+        Style {
+            display: taffy::Display::Flex,
+            flex_direction: match style.flex_direction {
+                Some(ElemFlexDirection::Row) | None => taffy::FlexDirection::Row,
+                Some(ElemFlexDirection::Column) => taffy::FlexDirection::Column,
+                Some(ElemFlexDirection::RowReverse) => taffy::FlexDirection::RowReverse,
+                Some(ElemFlexDirection::ColumnReverse) => taffy::FlexDirection::ColumnReverse,
+            },
+            justify_content: Some(match style.justify_content {
+                Some(ElemJustifyContent::FlexStart) | None => taffy::JustifyContent::FlexStart,
+                Some(ElemJustifyContent::FlexEnd) => taffy::JustifyContent::FlexEnd,
+                Some(ElemJustifyContent::Center) => taffy::JustifyContent::Center,
+                Some(ElemJustifyContent::SpaceBetween) => taffy::JustifyContent::SpaceBetween,
+                Some(ElemJustifyContent::SpaceAround) => taffy::JustifyContent::SpaceAround,
+                Some(ElemJustifyContent::SpaceEvenly) => taffy::JustifyContent::SpaceEvenly,
+            }),
+            align_items: Some(match style.align_items {
+                Some(ElemAlignItems::FlexStart) => taffy::AlignItems::FlexStart,
+                Some(ElemAlignItems::FlexEnd) => taffy::AlignItems::FlexEnd,
+                Some(ElemAlignItems::Center) => taffy::AlignItems::Center,
+                Some(ElemAlignItems::Stretch) | None => taffy::AlignItems::Stretch,
+                Some(ElemAlignItems::Baseline) => taffy::AlignItems::Baseline,
+            }),
+            gap: Size {
+                width: length(style.gap.unwrap_or(0.0)),
+                height: length(style.gap.unwrap_or(0.0)),
+            },
+            flex_wrap: match style.flex_wrap {
+                Some(ElemFlexWrap::Wrap) => taffy::FlexWrap::Wrap,
+                _ => taffy::FlexWrap::NoWrap,
+            },
+            // ... also includes size, margin, padding, border
+            ..Default::default()
+        }
+    }
+    ```
+    From `crates/htvg-core/src/layout.rs:384-436`.
+  </Tab>
+</Tabs>
+
+### 3. Dimension Conversion
+
+HTVG dimensions (pixels or percentages) are converted to Taffy's dimension types:
+
+```rust
+fn dimension_to_taffy(dim: &Option<Dimension>) -> taffy::Dimension {
+    match dim {
+        None => taffy::Dimension::auto(),
+        Some(Dimension::Px(px)) => taffy::Dimension::length(*px),
+        Some(Dimension::Percent(s)) => {
+            let pct = s.trim_end_matches('%').parse::<f32>().unwrap_or(0.0);
+            taffy::Dimension::percent(pct / 100.0)
+        }
+    }
+}
+```
+
+From `crates/htvg-core/src/layout.rs:475-484`.
+
+### 4. Spacing Conversion
+
+HTVG's flexible spacing syntax is converted to Taffy's rect format:
+
+```rust
+fn spacing_to_taffy_rect(spacing: &Option<Spacing>) -> Rect<LengthPercentageAuto> {
+    match spacing {
+        None => Rect {
+            top: LengthPercentageAuto::length(0.0),
+            right: LengthPercentageAuto::length(0.0),
+            bottom: LengthPercentageAuto::length(0.0),
+            left: LengthPercentageAuto::length(0.0),
+        },
+        Some(s) => {
+            let [top, right, bottom, left] = s.to_edges();
+            Rect {
+                top: LengthPercentageAuto::length(top),
+                right: LengthPercentageAuto::length(right),
+                bottom: LengthPercentageAuto::length(bottom),
+                left: LengthPercentageAuto::length(left),
+            }
+        }
+    }
+}
+```
+
+From `crates/htvg-core/src/layout.rs:486-503`.
+
+## Node Context
+
+Leaf nodes (Text and Image) need measurement functions. HTVG attaches context to these nodes:
+
+```rust
+pub enum NodeContext {
+    /// Text node that needs Parley for measurement
+    Text(TextContext),
+    /// Image with intrinsic dimensions
+    Image { width: f32, height: f32 },
+}
+
+pub struct TextContext {
+    pub content: String,
+    pub font_family: Option<String>,
+    pub font_size: f32,
+    pub font_weight: u16,
+    pub line_height: f32,
+    pub letter_spacing: f32,
+}
+```
+
+From `crates/htvg-core/src/layout.rs:17-48`.
+
+## Measurement Functions
+
+Taffy calls measurement functions to determine the natural size of leaf nodes:
+
+```rust
+fn measure_function(
+    known_dimensions: Size<Option<f32>>,
+    available_space: Size<AvailableSpace>,
+    node_context: Option<&mut NodeContext>,
+    text_engine: &mut TextLayoutEngine,
+) -> Size<f32> {
+    match node_context {
+        Some(NodeContext::Text(ctx)) => {
+            // Use known dimensions if available
+            if let (Some(width), Some(height)) = (known_dimensions.width, known_dimensions.height) {
+                return Size { width, height };
+            }
+
+            // Determine available width for text wrapping
+            let available_width = match available_space.width {
+                AvailableSpace::Definite(w) => Some(w),
+                AvailableSpace::MinContent => Some(0.0),
+                AvailableSpace::MaxContent => None,
+            };
+
+            // Measure text using the text engine
+            text_engine.measure(&ctx.content, ctx.font_size, available_width)
+        }
+        Some(NodeContext::Image { width, height }) => {
+            // Use intrinsic dimensions, respecting any known constraints
+            Size {
+                width: known_dimensions.width.unwrap_or(*width),
+                height: known_dimensions.height.unwrap_or(*height),
+            }
+        }
+        None => Size::ZERO,
+    }
+}
+```
+
+From `crates/htvg-core/src/layout.rs:320-353`.
+
+<Note>
+  Text measurement is delegated to the Parley text engine (covered in [Text Rendering](/concepts/text-rendering)).
+</Note>
+
+## Computing Layout
+
+Once the tree is built, Taffy computes the final layout:
+
+```rust
+let available_space = Size {
+    width: AvailableSpace::Definite(viewport_width),
+    height: viewport_height
+        .map(AvailableSpace::Definite)
+        .unwrap_or(AvailableSpace::MaxContent),
+};
+
+taffy.compute_layout_with_measure(
+    root,
+    available_space,
+    |known_dimensions, available_space, _node_id, node_context, _style| {
+        measure_function(known_dimensions, available_space, node_context, text_engine)
+    },
+)?;
+```
+
+From `crates/htvg-core/src/layout.rs:141-158`.
+
+### Available Space
+
+Taffy uses the `AvailableSpace` enum to describe constraints:
+
+- **Definite** - Fixed size (e.g., 400px width)
+- **MaxContent** - Expand to maximum content size (used for auto-height)
+- **MinContent** - Shrink to minimum content size
+
+## Layout Result
+
+The computed layout includes:
+
+```rust
+pub struct LayoutResult {
+    /// The Taffy tree with computed layout
+    pub taffy: TaffyTree<NodeContext>,
+    /// Root node ID
+    pub root: NodeId,
+    /// Map from Taffy NodeId to original Element reference index
+    pub node_data: HashMap<NodeId, NodeData>,
+}
+
+pub struct NodeData {
+    /// The element type for rendering
+    pub element_type: ElementType,
+    /// Visual style for rendering
+    pub visual: VisualStyle,
+}
+
+pub struct VisualStyle {
+    pub background_color: Option<Color>,
+    pub border_width: f32,
+    pub border_color: Option<Color>,
+    pub border_radius: [f32; 4],
+    pub opacity: f32,
+}
+```
+
+From `crates/htvg-core/src/layout.rs:50-113`.
+
+## Reading Computed Layout
+
+After computation, you can read the final position and size of any node:
+
+```rust
+let layout = result.taffy.layout(node_id).unwrap();
+
+println!("Position: ({}, {})", layout.location.x, layout.location.y);
+println!("Size: {} x {}", layout.size.width, layout.size.height);
+println!("Padding: {:?}", layout.padding);
+println!("Border: {:?}", layout.border);
+```
+
+The SVG renderer uses this information to generate `<rect>`, `<text>`, and `<image>` elements at the correct positions.
+
+## Flexbox Algorithm
+
+Taffy implements the W3C CSS Flexbox specification. The algorithm:
+
+1. **Determine flex base size** - Initial size of each flex item
+2. **Resolve flexible lengths** - Distribute available space according to `flex-grow` and `flex-shrink`
+3. **Determine cross size** - Calculate heights (for row direction) or widths (for column)
+4. **Align and justify** - Apply `justify-content` and `align-items`
+5. **Position children** - Calculate final x,y coordinates
+
+<Tip>
+  Taffy handles all the complexity of CSS Flexbox, including:
+  - Min/max constraints
+  - Aspect ratio preservation
+  - Baseline alignment
+  - Multi-line wrapping
+  - Reverse directions
+</Tip>
+
+## Example: Layout Flow
+
+Here's how a simple flex layout is computed:
+
+<Tabs>
+  <Tab title="Input">
+    ```json
+    {
+      "type": "flex",
+      "style": {
+        "width": 400,
+        "flexDirection": "column",
+        "gap": 12,
+        "padding": 20
+      },
+      "children": [
+        {
+          "type": "text",
+          "content": "Hello",
+          "style": { "fontSize": 24 }
+        },
+        {
+          "type": "text",
+          "content": "World",
+          "style": { "fontSize": 16 }
+        }
+      ]
+    }
+    ```
+  </Tab>
+  <Tab title="Taffy Tree">
+    ```
+    Root (Flex)
+    ├─ width: 400px (definite)
+    ├─ height: auto (max-content)
+    ├─ flex-direction: column
+    ├─ gap: 12px
+    ├─ padding: 20px
+    │
+    ├─ Text "Hello"
+    │  └─ measure: 380px available → (120px, 28px)
+    │
+    └─ Text "World"
+       └─ measure: 380px available → (80px, 19px)
+    ```
+  </Tab>
+  <Tab title="Computed Layout">
+    ```
+    Root
+    ├─ x: 0, y: 0
+    ├─ width: 400, height: 99
+    │  (20 padding + 28 + 12 gap + 19 + 20 padding)
+    │
+    ├─ Text "Hello"
+    │  ├─ x: 20, y: 20
+    │  └─ width: 120, height: 28
+    │
+    └─ Text "World"
+       ├─ x: 20, y: 60  (20 + 28 + 12)
+       └─ width: 80, height: 19
+    ```
+  </Tab>
+</Tabs>
+
+## Performance Characteristics
+
+Taffy is highly optimized:
+
+- **Algorithmic complexity**: O(n) for most layouts
+- **Memory efficiency**: Minimal allocations during computation
+- **Cache-friendly**: Data structures designed for CPU cache locality
+- **WASM overhead**: Negligible when compiled to WebAssembly
+
+<Info>
+  Typical layout computation for a complex document (100+ nodes) takes less than 1ms on modern hardware.
+</Info>
+
+## Debugging Layout
+
+When debugging layout issues:
+
+1. Check the input element tree structure
+2. Verify style properties are correctly specified
+3. Ensure parent containers have defined dimensions
+4. Check that flex children have appropriate `flexGrow`/`flexShrink`
+5. Use the Taffy tree output to trace the layout computation
+
+<Warning>
+  Common issue: Text overflowing containers. Ensure the parent has a defined width so text can wrap correctly.
+</Warning>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Element Types" icon="shapes" href="/concepts/element-types">
+    Learn about the elements Taffy layouts
+  </Card>
+  <Card title="Style Properties" icon="paintbrush" href="/concepts/style-properties">
+    Complete style property reference
+  </Card>
+  <Card title="Text Rendering" icon="font" href="/concepts/text-rendering">
+    How text is measured and shaped
+  </Card>
+</CardGroup>
+
+## External Resources
+
+- [Taffy GitHub Repository](https://github.com/DioxusLabs/taffy)
+- [CSS Flexbox Specification](https://www.w3.org/TR/css-flexbox-1/)
+- [Taffy Documentation](https://docs.rs/taffy/latest/taffy/)

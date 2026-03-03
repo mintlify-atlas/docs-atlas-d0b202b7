@@ -1,0 +1,166 @@
+---
+title: "Compile Functions"
+description: "Core compilation functions for converting element trees to SVG"
+---
+
+HTVG provides three main compilation functions depending on your input format and needs.
+
+## compile()
+
+Compile a JSON string representing an element tree to SVG.
+
+```rust
+pub fn compile(
+    element_json: &str,
+    options: &CompileOptions
+) -> Result<CompileResult, CompileError>
+```
+
+<ParamField path="element_json" type="&str" required>
+  JSON string representing the element tree to compile
+</ParamField>
+
+<ParamField path="options" type="&CompileOptions" required>
+  Compilation options including width, height, fonts, etc.
+</ParamField>
+
+<ResponseField name="Result" type="Result<CompileResult, CompileError>">
+  Returns a `CompileResult` containing the SVG string and metadata on success, or a `CompileError` on failure
+</ResponseField>
+
+### Example
+
+```rust
+use htvg::{compile, CompileOptions};
+
+let json = r###"{
+    "type": "flex",
+    "style": { "width": 400, "padding": 20, "backgroundColor": "#ffffff" },
+    "children": [
+        {
+            "type": "text",
+            "content": "Hello World",
+            "style": { "fontSize": 24, "color": "#333333" }
+        }
+    ]
+}"###;
+
+let options = CompileOptions {
+    width: 400.0,
+    ..CompileOptions::default()
+};
+
+let result = compile(json, &options)?;
+println!("{}", result.svg);
+```
+
+### Errors
+
+Returns `CompileError` with kind:
+- `"parse_error"` - Invalid JSON or element structure
+- `"layout_error"` - Layout computation failed
+- `"font_error"` - Invalid base64 font data
+
+---
+
+## compile_element()
+
+Compile a parsed `Element` tree to SVG.
+
+```rust
+pub fn compile_element(
+    element: &Element,
+    options: &CompileOptions
+) -> Result<CompileResult, CompileError>
+```
+
+<ParamField path="element" type="&Element" required>
+  Parsed element tree (Box, Flex, Text, or Image)
+</ParamField>
+
+<ParamField path="options" type="&CompileOptions" required>
+  Compilation options
+</ParamField>
+
+<ResponseField name="Result" type="Result<CompileResult, CompileError>">
+  Returns a `CompileResult` on success, or a `CompileError` on failure
+</ResponseField>
+
+### Example
+
+```rust
+use htvg::{compile_element, Element, CompileOptions};
+
+let element: Element = serde_json::from_str(json_str)?;
+let options = CompileOptions::default();
+
+let result = compile_element(&element, &options)?;
+```
+
+<Note>
+  Use `compile_element()` when you've already parsed the JSON into an `Element` struct, or when building elements programmatically. Use `compile()` for direct JSON-to-SVG conversion.
+</Note>
+
+---
+
+## compile_document()
+
+Compile a self-contained HTVG document (metadata + content) to SVG.
+
+```rust
+pub fn compile_document(doc_json: &str) -> Result<CompileResult, CompileError>
+```
+
+<ParamField path="doc_json" type="&str" required>
+  JSON string containing both `meta` (compile options) and `content` (element tree)
+</ParamField>
+
+<ResponseField name="Result" type="Result<CompileResult, CompileError>">
+  Returns a `CompileResult` on success, or a `CompileError` on failure
+</ResponseField>
+
+### Document Format
+
+```json
+{
+  "meta": {
+    "width": 800,
+    "height": 600,
+    "fontSize": 16,
+    "fontFamily": "Inter",
+    "fonts": [
+      {
+        "family": "Inter",
+        "url": "https://example.com/inter.woff2",
+        "weight": 400,
+        "data": "<base64-encoded-font-data>"
+      }
+    ]
+  },
+  "content": {
+    "type": "flex",
+    "children": [...]
+  }
+}
+```
+
+### Example
+
+```rust
+use htvg::compile_document;
+
+let doc_json = r###"{
+    "meta": { "width": 800 },
+    "content": {
+        "type": "box",
+        "style": { "width": 200, "height": 100, "backgroundColor": "#ff0000" }
+    }
+}"###;
+
+let result = compile_document(doc_json)?;
+assert!(result.svg.contains("<svg"));
+```
+
+<Tip>
+  Use `compile_document()` when your input includes compilation options alongside the element tree. This is the recommended format for storing complete HTVG graphics.
+</Tip>

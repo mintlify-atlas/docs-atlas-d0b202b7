@@ -1,0 +1,423 @@
+---
+title: Open Graph Images
+description: Generate dynamic Open Graph and social media preview images using HTVG with server-side rendering
+---
+
+HTVG is perfect for generating Open Graph (OG) images dynamically. Create beautiful social media previews from JSON templates that render to pure SVG — no browser required.
+
+## Why HTVG for OG Images?
+
+<CardGroup cols={2}>
+  <Card title="Server-Side Rendering" icon="server">
+    Runs in Node.js, Cloudflare Workers, and other runtimes without a browser
+  </Card>
+  <Card title="Pure SVG Output" icon="code">
+    Generate vector graphics that scale perfectly and convert easily to PNG
+  </Card>
+  <Card title="Fast Compilation" icon="bolt">
+    WASM-powered rendering is extremely fast — ideal for real-time generation
+  </Card>
+  <Card title="Custom Fonts" icon="font">
+    Full typography control with web fonts or embedded font data
+  </Card>
+</CardGroup>
+
+## Basic OG Image Template
+
+Create a reusable template for blog posts or product pages:
+
+```typescript
+import { init, compileDocument } from "htvg";
+import fs from "node:fs";
+
+await init(fs.readFileSync("node_modules/htvg/dist/wasm/htvg_bg.wasm"));
+
+function generateOGImage(title: string, description: string) {
+  return compileDocument({
+    meta: {
+      width: 1200,
+      height: 630,  // Standard OG image size
+      fonts: [
+        {
+          family: "Inter",
+          url: "https://fonts.gstatic.com/.../Inter-Bold.woff2",
+          weight: 700
+        },
+        {
+          family: "Inter",
+          url: "https://fonts.gstatic.com/.../Inter-Regular.woff2",
+          weight: 400
+        }
+      ]
+    },
+    content: {
+      type: "flex",
+      style: {
+        width: 1200,
+        height: 630,
+        padding: 80,
+        backgroundColor: "#0f172a",
+        flexDirection: "column",
+        justifyContent: "space-between"
+      },
+      children: [
+        {
+          type: "flex",
+          style: { flexDirection: "column", gap: 24 },
+          children: [
+            {
+              type: "text",
+              content: title,
+              style: {
+                fontFamily: "Inter",
+                fontSize: 72,
+                fontWeight: 700,
+                color: "#f8fafc",
+                lineHeight: 1.2
+              }
+            },
+            {
+              type: "text",
+              content: description,
+              style: {
+                fontFamily: "Inter",
+                fontSize: 32,
+                fontWeight: 400,
+                color: "#94a3b8",
+                lineHeight: 1.5
+              }
+            }
+          ]
+        },
+        {
+          type: "text",
+          content: "yourdomain.com",
+          style: {
+            fontFamily: "Inter",
+            fontSize: 24,
+            color: "#64748b"
+          }
+        }
+      ]
+    }
+  });
+}
+
+const result = generateOGImage(
+  "Build Better APIs",
+  "A comprehensive guide to REST API design patterns and best practices"
+);
+
+fs.writeFileSync("og-image.svg", result.svg);
+```
+
+<Note>
+Standard Open Graph image size is **1200 × 630 pixels**. Twitter recommends a 2:1 aspect ratio.
+</Note>
+
+## Converting SVG to PNG
+
+Most social platforms prefer PNG or JPEG. Use Sharp or similar libraries to convert:
+
+<Tabs>
+  <Tab title="Sharp (Node.js)">
+    ```typescript
+    import sharp from "sharp";
+    import { init, compileDocument } from "htvg";
+    import fs from "node:fs";
+
+    await init(fs.readFileSync("node_modules/htvg/dist/wasm/htvg_bg.wasm"));
+
+    const result = compileDocument({
+      meta: { width: 1200, height: 630 },
+      content: {
+        type: "flex",
+        style: {
+          width: 1200,
+          height: 630,
+          backgroundColor: "#ffffff",
+          justifyContent: "center",
+          alignItems: "center"
+        },
+        children: [
+          {
+            type: "text",
+            content: "Hello, OG!",
+            style: { fontSize: 64, fontWeight: "bold", color: "#1a1a1a" }
+          }
+        ]
+      }
+    });
+
+    await sharp(Buffer.from(result.svg))
+      .png()
+      .toFile("og-image.png");
+
+    console.log("OG image generated: og-image.png");
+    ```
+  </Tab>
+
+  <Tab title="Cloudflare Workers">
+    ```typescript
+    import { init, compileDocument } from "htvg";
+    import wasmModule from "htvg/htvg.wasm";
+
+    export default {
+      async fetch(request: Request): Promise<Response> {
+        await init(wasmModule);
+
+        const url = new URL(request.url);
+        const title = url.searchParams.get("title") || "Default Title";
+
+        const result = compileDocument({
+          meta: { width: 1200, height: 630 },
+          content: {
+            type: "flex",
+            style: {
+              width: 1200,
+              height: 630,
+              padding: 80,
+              backgroundColor: "#ffffff",
+              justifyContent: "center",
+              alignItems: "center"
+            },
+            children: [
+              {
+                type: "text",
+                content: title,
+                style: { fontSize: 64, fontWeight: "bold", color: "#000" }
+              }
+            ]
+          }
+        });
+
+        return new Response(result.svg, {
+          headers: {
+            "Content-Type": "image/svg+xml",
+            "Cache-Control": "public, max-age=3600"
+          }
+        });
+      }
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Dynamic Content
+
+Generate OG images based on dynamic data:
+
+```typescript
+import { init, compileDocument } from "htvg";
+
+await init();
+
+interface BlogPost {
+  title: string;
+  author: string;
+  date: string;
+  category: string;
+}
+
+function generateBlogOG(post: BlogPost) {
+  return compileDocument({
+    meta: { width: 1200, height: 630 },
+    content: {
+      type: "flex",
+      style: {
+        width: 1200,
+        height: 630,
+        padding: 80,
+        backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        flexDirection: "column",
+        justifyContent: "space-between"
+      },
+      children: [
+        {
+          type: "flex",
+          style: {
+            backgroundColor: "#8b5cf6",
+            borderRadius: 12,
+            padding: "8 20"
+          },
+          children: [
+            {
+              type: "text",
+              content: post.category.toUpperCase(),
+              style: {
+                fontSize: 20,
+                fontWeight: 700,
+                color: "#ffffff"
+              }
+            }
+          ]
+        },
+        {
+          type: "text",
+          content: post.title,
+          style: {
+            fontSize: 68,
+            fontWeight: 700,
+            color: "#ffffff",
+            lineHeight: 1.2
+          }
+        },
+        {
+          type: "flex",
+          style: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center"
+          },
+          children: [
+            {
+              type: "text",
+              content: `By ${post.author}`,
+              style: { fontSize: 24, color: "#e9d5ff" }
+            },
+            {
+              type: "text",
+              content: post.date,
+              style: { fontSize: 24, color: "#e9d5ff" }
+            }
+          ]
+        }
+      ]
+    }
+  });
+}
+
+const result = generateBlogOG({
+  title: "Understanding WASM in Modern Web Development",
+  author: "Jane Doe",
+  date: "March 3, 2026",
+  category: "Tutorial"
+});
+```
+
+## API Endpoint Example
+
+Create an API endpoint that generates OG images on-demand:
+
+<Steps>
+  <Step title="Create the endpoint">
+    ```typescript api/og.ts
+    import { init, compileDocument } from "htvg";
+    import sharp from "sharp";
+    import fs from "node:fs";
+
+    await init(fs.readFileSync("./htvg_bg.wasm"));
+
+    export async function GET(request: Request) {
+      const url = new URL(request.url);
+      const title = url.searchParams.get("title") || "Untitled";
+      const subtitle = url.searchParams.get("subtitle") || "";
+
+      const result = compileDocument({
+        meta: { width: 1200, height: 630 },
+        content: {
+          type: "flex",
+          style: {
+            width: 1200,
+            height: 630,
+            padding: 80,
+            backgroundColor: "#0f172a",
+            flexDirection: "column",
+            gap: 24
+          },
+          children: [
+            {
+              type: "text",
+              content: title,
+              style: { fontSize: 72, fontWeight: 700, color: "#f8fafc" }
+            },
+            subtitle ? {
+              type: "text",
+              content: subtitle,
+              style: { fontSize: 32, color: "#94a3b8" }
+            } : null
+          ].filter(Boolean)
+        }
+      });
+
+      const png = await sharp(Buffer.from(result.svg))
+        .png()
+        .toBuffer();
+
+      return new Response(png, {
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "public, max-age=31536000"
+        }
+      });
+    }
+    ```
+  </Step>
+
+  <Step title="Use in HTML meta tags">
+    ```html
+    <meta property="og:image" content="https://yoursite.com/api/og?title=My%20Blog%20Post&subtitle=A%20great%20read" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://yoursite.com/api/og?title=My%20Blog%20Post" />
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Image Dimensions">
+    - **Open Graph**: 1200 × 630px (recommended)
+    - **Twitter**: 1200 × 675px or 1200 × 628px
+    - Always specify `width` and `height` in `meta`
+  </Accordion>
+
+  <Accordion title="Font Loading">
+    - Use CDN-hosted fonts for reliability
+    - Provide `data` field for accurate text measurement
+    - Preload common fonts at startup for better performance
+  </Accordion>
+
+  <Accordion title="Caching">
+    - Cache generated images with query parameters as keys
+    - Use CDN caching headers (`Cache-Control: public, max-age=...`)
+    - Consider pre-generating images for static content
+  </Accordion>
+
+  <Accordion title="Text Overflow">
+    - Keep titles under 60 characters
+    - Use `lineHeight` for multi-line text readability
+    - Test with long titles to ensure proper wrapping
+  </Accordion>
+</AccordionGroup>
+
+## Testing Your Images
+
+Validate your OG images with these tools:
+
+- [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/)
+- [Twitter Card Validator](https://cards-dev.twitter.com/validator)
+- [LinkedIn Post Inspector](https://www.linkedin.com/post-inspector/)
+
+<Tip>
+Always test your OG images in the actual social platforms. Validators help, but real-world testing is essential.
+</Tip>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Custom Fonts" href="/guides/custom-fonts" icon="font">
+    Use web fonts for beautiful typography
+  </Card>
+  <Card title="Edge Runtime" href="/guides/edge-runtime" icon="bolt">
+    Deploy OG image generation to the edge
+  </Card>
+  <Card title="Examples" href="/guides/examples" icon="book-open">
+    See real-world layout examples
+  </Card>
+  <Card title="Compile API" href="/api/rust/compile" icon="code">
+    Learn about compilation options
+  </Card>
+</CardGroup>

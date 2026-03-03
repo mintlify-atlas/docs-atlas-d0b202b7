@@ -1,0 +1,418 @@
+---
+title: "init()"
+description: "Initialize the HTVG WASM module for browser, Node.js, and edge runtimes"
+---
+
+## init()
+
+Initialize the HTVG WASM module. This function must be called once before using any compilation functions (`compileDocument()`, `compile()`).
+
+```typescript
+async function init(input?: InitInput): Promise<void>
+```
+
+<ParamField path="input" type="InitInput">
+  Optional WASM module input. Behavior varies by runtime:
+  - **Browser**: Omit to auto-fetch, or pass a URL/string path to the `.wasm` file
+  - **Node.js**: Pass a `Buffer` from `fs.readFileSync()`
+  - **Cloudflare Workers**: Pass the imported `WebAssembly.Module`
+  - **Deno**: Omit to auto-fetch, or pass a `URL`
+</ParamField>
+
+### InitInput Type
+
+```typescript
+type InitInput =
+  | RequestInfo
+  | URL
+  | Response
+  | BufferSource
+  | WebAssembly.Module
+  | Promise<Response>;
+```
+
+---
+
+## Usage by Runtime
+
+### Browser
+
+In browsers, `init()` automatically fetches the WASM file from the same directory as the JS module.
+
+```javascript
+import { init, compileDocument } from "htvg";
+
+// Auto-fetch the WASM file
+await init();
+
+const result = compileDocument({
+  meta: { width: 400 },
+  content: {
+    type: "text",
+    content: "Hello from browser",
+    style: { fontSize: 24 }
+  }
+});
+
+document.body.innerHTML = result.svg;
+```
+
+#### Custom WASM path
+
+If you need to specify a custom path:
+
+```javascript
+import { init, compileDocument } from "htvg";
+
+// Custom path to WASM file
+await init("/static/htvg_bg.wasm");
+
+const result = compileDocument({
+  meta: { width: 400 },
+  content: { type: "text", content: "Custom path", style: { fontSize: 24 } }
+});
+```
+
+### Node.js
+
+In Node.js, you must manually load the WASM binary and pass it to `init()`.
+
+```javascript
+import { init, compileDocument } from "htvg";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load WASM binary
+const wasmPath = path.join(
+  __dirname,
+  "node_modules/htvg/dist/wasm/htvg_bg.wasm"
+);
+const wasmBuffer = fs.readFileSync(wasmPath);
+
+// Initialize with buffer
+await init(wasmBuffer);
+
+const result = compileDocument({
+  meta: { width: 600 },
+  content: {
+    type: "flex",
+    style: { padding: 24, backgroundColor: "#f5f5f5" },
+    children: [
+      { type: "text", content: "Node.js SVG", style: { fontSize: 32 } }
+    ]
+  }
+});
+
+fs.writeFileSync("output.svg", result.svg);
+console.log("SVG written to output.svg");
+```
+
+#### Express.js server
+
+```javascript
+import express from "express";
+import { init, compileDocument } from "htvg";
+import fs from "node:fs";
+
+const app = express();
+
+// Initialize once at startup
+const wasmBuffer = fs.readFileSync("node_modules/htvg/dist/wasm/htvg_bg.wasm");
+await init(wasmBuffer);
+
+app.get("/generate", (req, res) => {
+  const result = compileDocument({
+    meta: { width: 800, height: 400 },
+    content: {
+      type: "flex",
+      style: {
+        width: 800,
+        height: 400,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#3b82f6"
+      },
+      children: [
+        { 
+          type: "text", 
+          content: "Express.js + HTVG", 
+          style: { fontSize: 48, color: "#ffffff", fontWeight: "bold" } 
+        }
+      ]
+    }
+  });
+
+  res.setHeader("Content-Type", "image/svg+xml");
+  res.send(result.svg);
+});
+
+app.listen(3000, () => {
+  console.log("Server running on http://localhost:3000");
+});
+```
+
+### Cloudflare Workers
+
+Cloudflare Workers require importing the WASM module directly.
+
+```javascript
+import { init, compileDocument } from "htvg";
+import wasmModule from "htvg/htvg.wasm";
+
+export default {
+  async fetch(request) {
+    // Initialize with imported module
+    await init(wasmModule);
+
+    const result = compileDocument({
+      meta: { width: 800, height: 400 },
+      content: {
+        type: "flex",
+        style: {
+          width: 800,
+          height: 400,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#f59e0b"
+        },
+        children: [
+          { 
+            type: "text", 
+            content: "Generated at the Edge", 
+            style: { fontSize: 48, color: "#ffffff", fontWeight: "bold" } 
+          }
+        ]
+      }
+    });
+
+    return new Response(result.svg, {
+      headers: {
+        "Content-Type": "image/svg+xml",
+        "Cache-Control": "public, max-age=3600"
+      }
+    });
+  }
+};
+```
+
+#### Wrangler configuration
+
+Add this to your `wrangler.toml`:
+
+```toml
+name = "htvg-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[build]
+command = "npm install"
+
+# Enable WASM module imports
+[rules]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+```
+
+#### Optimized initialization
+
+Initialize once and reuse across requests:
+
+```javascript
+import { init, compileDocument } from "htvg";
+import wasmModule from "htvg/htvg.wasm";
+
+let initialized = false;
+
+export default {
+  async fetch(request) {
+    // Initialize only once
+    if (!initialized) {
+      await init(wasmModule);
+      initialized = true;
+    }
+
+    const url = new URL(request.url);
+    const text = url.searchParams.get("text") || "Hello, Workers!";
+
+    const result = compileDocument({
+      meta: { width: 600 },
+      content: {
+        type: "flex",
+        style: { padding: 32, backgroundColor: "#ffffff" },
+        children: [
+          { type: "text", content: text, style: { fontSize: 28 } }
+        ]
+      }
+    });
+
+    return new Response(result.svg, {
+      headers: { "Content-Type": "image/svg+xml" }
+    });
+  }
+};
+```
+
+### Deno
+
+Deno supports auto-fetching like browsers:
+
+```typescript
+import { init, compileDocument } from "npm:htvg";
+
+// Auto-fetch WASM
+await init();
+
+const result = compileDocument({
+  meta: { width: 400 },
+  content: {
+    type: "text",
+    content: "Hello from Deno",
+    style: { fontSize: 24 }
+  }
+});
+
+console.log(result.svg);
+```
+
+---
+
+## Error Handling
+
+`init()` may throw errors if:
+- WASM file cannot be fetched or loaded
+- Invalid WASM binary provided
+- WebAssembly is not supported in the runtime
+
+```javascript
+try {
+  await init();
+  console.log("HTVG initialized successfully");
+} catch (error) {
+  console.error("Failed to initialize HTVG:", error);
+}
+```
+
+---
+
+## Best Practices
+
+### Initialize once
+
+Call `init()` only once per application lifecycle:
+
+```javascript
+import { init } from "htvg";
+
+let isInitialized = false;
+
+export async function ensureInit() {
+  if (!isInitialized) {
+    await init();
+    isInitialized = true;
+  }
+}
+```
+
+### Lazy initialization
+
+Defer initialization until first use:
+
+```javascript
+import { init, compileDocument } from "htvg";
+
+let initPromise: Promise<void> | null = null;
+
+function ensureInit() {
+  if (!initPromise) {
+    initPromise = init();
+  }
+  return initPromise;
+}
+
+export async function compile(doc) {
+  await ensureInit();
+  return compileDocument(doc);
+}
+```
+
+### Serverless optimization
+
+In serverless environments, initialize outside the handler when possible:
+
+```javascript
+import { init, compileDocument } from "htvg";
+import wasmModule from "htvg/htvg.wasm";
+
+// Initialize at module load time (cold start only)
+const initPromise = init(wasmModule);
+
+export default {
+  async fetch(request) {
+    // Wait for init on first request
+    await initPromise;
+    
+    // ... handle request
+  }
+};
+```
+
+---
+
+## Internal Behavior
+
+When `init()` is called:
+
+1. Sets up panic hooks for better error messages (in debug builds)
+2. Loads the WebAssembly module into memory
+3. Instantiates the WASM module with JavaScript bindings
+4. Makes compilation functions (`compileDocument`, `compile`) available
+
+The WASM module remains loaded in memory for the lifetime of the JavaScript runtime, enabling fast subsequent compilations.
+
+---
+
+## Troubleshooting
+
+### "HTVG WASM not initialized" error
+
+This error occurs when calling `compileDocument()` or `compile()` before `init()`:
+
+```javascript
+// Wrong - forgot to initialize
+const result = compileDocument({ ... }); // Error!
+
+// Correct
+await init();
+const result = compileDocument({ ... }); // Works!
+```
+
+### WASM file not found (Browser)
+
+Ensure the `.wasm` file is served from the correct path:
+
+```javascript
+// If WASM is in a different directory
+await init("/assets/htvg_bg.wasm");
+```
+
+### Module import errors (Node.js)
+
+Verify the WASM file path:
+
+```javascript
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const wasmPath = path.resolve(__dirname, "node_modules/htvg/dist/wasm/htvg_bg.wasm");
+
+if (!fs.existsSync(wasmPath)) {
+  throw new Error(`WASM file not found at ${wasmPath}`);
+}
+
+await init(fs.readFileSync(wasmPath));
+```

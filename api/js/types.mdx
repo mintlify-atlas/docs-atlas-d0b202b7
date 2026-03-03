@@ -1,0 +1,580 @@
+---
+title: "TypeScript Types"
+description: "Complete TypeScript type definitions for HTVG elements, styles, and documents"
+---
+
+## Element Types
+
+HTVG supports four element types that can be composed into a tree structure.
+
+### Element
+
+Union type representing any HTVG element.
+
+```typescript
+type Element = BoxElement | FlexElement | TextElement | ImageElement;
+```
+
+### BoxElement
+
+Block container element for grouping children.
+
+```typescript
+interface BoxElement {
+  type: "box";
+  style?: BoxStyle;
+  children?: Element[];
+}
+```
+
+<ParamField path="type" type="'box'" required>
+  Element type identifier
+</ParamField>
+<ParamField path="style" type="BoxStyle">
+  Visual and layout styles
+</ParamField>
+<ParamField path="children" type="Element[]">
+  Child elements to render inside the box
+</ParamField>
+
+### FlexElement
+
+Flexbox container element with flex layout properties.
+
+```typescript
+interface FlexElement {
+  type: "flex";
+  style?: FlexStyle;
+  children?: Element[];
+}
+```
+
+<ParamField path="type" type="'flex'" required>
+  Element type identifier
+</ParamField>
+<ParamField path="style" type="FlexStyle">
+  Flexbox layout and visual styles
+</ParamField>
+<ParamField path="children" type="Element[]">
+  Child elements laid out using flexbox
+</ParamField>
+
+### TextElement
+
+Text leaf element with automatic line wrapping.
+
+```typescript
+interface TextElement {
+  type: "text";
+  content: string;
+  style?: TextStyle;
+}
+```
+
+<ParamField path="type" type="'text'" required>
+  Element type identifier
+</ParamField>
+<ParamField path="content" type="string" required>
+  Text content to render
+</ParamField>
+<ParamField path="style" type="TextStyle">
+  Typography and color styles
+</ParamField>
+
+### ImageElement
+
+Image element with intrinsic dimensions.
+
+```typescript
+interface ImageElement {
+  type: "image";
+  src: string;
+  width: number;
+  height: number;
+  style?: ImageStyle;
+}
+```
+
+<ParamField path="type" type="'image'" required>
+  Element type identifier
+</ParamField>
+<ParamField path="src" type="string" required>
+  Image source URL or data URI
+</ParamField>
+<ParamField path="width" type="number" required>
+  Intrinsic image width in pixels
+</ParamField>
+<ParamField path="height" type="number" required>
+  Intrinsic image height in pixels
+</ParamField>
+<ParamField path="style" type="ImageStyle">
+  Image display and layout styles
+</ParamField>
+
+---
+
+## Style Types
+
+### BoxStyle
+
+Styles for box container elements.
+
+```typescript
+interface BoxStyle {
+  display?: "block" | "flex" | "none";
+
+  width?: Dimension;
+  height?: Dimension;
+  minWidth?: Dimension;
+  maxWidth?: Dimension;
+  minHeight?: Dimension;
+  maxHeight?: Dimension;
+
+  margin?: Spacing;
+  padding?: Spacing;
+
+  backgroundColor?: Color;
+  borderWidth?: number;
+  borderColor?: Color;
+  borderRadius?: BorderRadius;
+  opacity?: number;
+}
+```
+
+### FlexStyle
+
+Styles for flex container elements, including all flexbox properties.
+
+```typescript
+interface FlexStyle {
+  display?: "block" | "flex" | "none";
+
+  width?: Dimension;
+  height?: Dimension;
+  minWidth?: Dimension;
+  maxWidth?: Dimension;
+  minHeight?: Dimension;
+  maxHeight?: Dimension;
+
+  margin?: Spacing;
+  padding?: Spacing;
+
+  flexDirection?: FlexDirection;
+  justifyContent?: JustifyContent;
+  alignItems?: AlignItems;
+  gap?: number;
+  flexWrap?: FlexWrap;
+
+  backgroundColor?: Color;
+  borderWidth?: number;
+  borderColor?: Color;
+  borderRadius?: BorderRadius;
+  opacity?: number;
+}
+```
+
+### TextStyle
+
+Styles for text elements.
+
+```typescript
+interface TextStyle {
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: FontWeight;
+  lineHeight?: number;
+  textAlign?: TextAlign;
+  color?: Color;
+  letterSpacing?: number;
+  textRendering?: "text" | "vector";
+
+  flexGrow?: number;
+  flexShrink?: number;
+}
+```
+
+<ParamField path="textRendering" type="'text' | 'vector'">
+  Render mode: `"text"` for SVG text elements (default), `"vector"` for outlined paths
+</ParamField>
+
+### ImageStyle
+
+Styles for image elements.
+
+```typescript
+interface ImageStyle {
+  width?: Dimension;
+  height?: Dimension;
+  minWidth?: Dimension;
+  maxWidth?: Dimension;
+  minHeight?: Dimension;
+  maxHeight?: Dimension;
+
+  margin?: Spacing;
+
+  objectFit?: ObjectFit;
+
+  borderRadius?: BorderRadius;
+  opacity?: number;
+
+  flexGrow?: number;
+  flexShrink?: number;
+}
+```
+
+---
+
+## Primitive Types
+
+### Dimension
+
+Dimension value accepting pixels (number) or percentage (string).
+
+```typescript
+type Dimension = number | string;
+```
+
+**Examples:**
+```javascript
+width: 400          // 400 pixels
+width: "50%"        // 50% of parent width
+height: "100%"      // 100% of parent height
+```
+
+### Spacing
+
+Spacing value for margin/padding: uniform number or multi-value string.
+
+```typescript
+type Spacing = number | string;
+```
+
+**Examples:**
+```javascript
+padding: 20                    // 20px all sides
+padding: "10 20"               // 10px vertical, 20px horizontal
+padding: "10 20 30 40"         // top right bottom left
+margin: "0 auto"               // centered horizontally
+```
+
+### BorderRadius
+
+Border radius: uniform number or per-corner string.
+
+```typescript
+type BorderRadius = number | string;
+```
+
+**Examples:**
+```javascript
+borderRadius: 8              // 8px all corners
+borderRadius: "8 8 0 0"      // top corners rounded, bottom square
+```
+
+### Color
+
+CSS color string: hex, rgb(), rgba(), or named colors.
+
+```typescript
+type Color = string;
+```
+
+**Examples:**
+```javascript
+color: "#1a1a1a"                    // hex
+color: "#fff"                        // short hex
+color: "#ff0000cc"                   // hex with alpha
+color: "rgb(255, 0, 0)"              // rgb
+color: "rgba(255, 0, 0, 0.8)"        // rgba
+color: "red"                         // named color
+```
+
+### FontWeight
+
+Font weight: number (100-900) or keyword.
+
+```typescript
+type FontWeight = number | "normal" | "bold";
+```
+
+**Examples:**
+```javascript
+fontWeight: 400        // normal
+fontWeight: 700        // bold
+fontWeight: "bold"     // keyword
+```
+
+---
+
+## Enum Types
+
+### FlexDirection
+
+```typescript
+type FlexDirection = "row" | "column" | "row-reverse" | "column-reverse";
+```
+
+### JustifyContent
+
+```typescript
+type JustifyContent =
+  | "flex-start"
+  | "flex-end"
+  | "center"
+  | "space-between"
+  | "space-around"
+  | "space-evenly";
+```
+
+### AlignItems
+
+```typescript
+type AlignItems =
+  | "flex-start"
+  | "flex-end"
+  | "center"
+  | "stretch"
+  | "baseline";
+```
+
+### FlexWrap
+
+```typescript
+type FlexWrap = "nowrap" | "wrap";
+```
+
+### TextAlign
+
+```typescript
+type TextAlign = "left" | "center" | "right" | "justify";
+```
+
+### ObjectFit
+
+```typescript
+type ObjectFit = "contain" | "cover" | "fill";
+```
+
+---
+
+## Document Types
+
+### HtvgDocument
+
+Self-contained HTVG document with metadata and content.
+
+```typescript
+interface HtvgDocument {
+  meta?: CompileOptions;
+  content: Element;
+}
+```
+
+<ParamField path="meta" type="CompileOptions">
+  Compilation options (width, height, fonts, etc.)
+</ParamField>
+<ParamField path="content" type="Element" required>
+  Root element tree to render
+</ParamField>
+
+**Example:**
+```javascript
+const doc: HtvgDocument = {
+  meta: { 
+    width: 600,
+    fonts: [
+      { family: "Inter", url: "https://fonts.gstatic.com/..." }
+    ]
+  },
+  content: {
+    type: "flex",
+    style: { padding: 24 },
+    children: [
+      { type: "text", content: "Hello", style: { fontSize: 32 } }
+    ]
+  }
+};
+```
+
+### CompileOptions
+
+Compilation configuration options.
+
+```typescript
+interface CompileOptions {
+  width: number;
+  height?: number;
+  fontSize?: number;
+  fontFamily?: string;
+  fonts?: FontSource[];
+}
+```
+
+<ParamField path="width" type="number" required>
+  Output width in pixels
+</ParamField>
+<ParamField path="height" type="number">
+  Output height in pixels (auto-computed if omitted)
+</ParamField>
+<ParamField path="fontSize" type="number" default="16">
+  Default font size for text elements
+</ParamField>
+<ParamField path="fontFamily" type="string">
+  Default font family for text elements without explicit fontFamily
+</ParamField>
+<ParamField path="fonts" type="FontSource[]">
+  Custom fonts to register
+</ParamField>
+
+### FontSource
+
+Font definition for custom fonts.
+
+```typescript
+interface FontSource {
+  family: string;
+  url?: string;
+  weight?: number;
+  data?: string;
+}
+```
+
+<ParamField path="family" type="string" required>
+  Font family name (used in SVG @font-face and as identifier)
+</ParamField>
+<ParamField path="url" type="string">
+  URL to the font file (emitted as @font-face src in SVG)
+</ParamField>
+<ParamField path="weight" type="number" default="400">
+  Font weight
+</ParamField>
+<ParamField path="data" type="string">
+  Base64-encoded font data (TTF/OTF/WOFF2) used for text layout
+</ParamField>
+
+**Example:**
+```javascript
+const fonts: FontSource[] = [
+  {
+    family: "Inter",
+    url: "https://fonts.gstatic.com/s/inter/v12/...",
+    weight: 400
+  },
+  {
+    family: "Inter",
+    url: "https://fonts.gstatic.com/s/inter/v12/...",
+    weight: 700
+  }
+];
+```
+
+### CompileResult
+
+Result object returned by compilation functions.
+
+```typescript
+interface CompileResult {
+  svg: string;
+  width: number;
+  height: number;
+  warnings: string[];
+}
+```
+
+<ResponseField name="svg" type="string">
+  Generated SVG string
+</ResponseField>
+<ResponseField name="width" type="number">
+  Computed output width in pixels
+</ResponseField>
+<ResponseField name="height" type="number">
+  Computed output height in pixels
+</ResponseField>
+<ResponseField name="warnings" type="string[]">
+  Array of warning messages from compilation (e.g., missing fonts, invalid values)
+</ResponseField>
+
+**Example:**
+```javascript
+const result: CompileResult = {
+  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"200\">...</svg>",
+  width: 400,
+  height: 200,
+  warnings: []
+};
+```
+
+---
+
+## Complete Example
+
+Here's a comprehensive example using all type definitions:
+
+```typescript
+import type { 
+  HtvgDocument, 
+  FlexElement, 
+  TextElement, 
+  CompileResult,
+  FontSource 
+} from "htvg";
+import { init, compileDocument } from "htvg";
+
+await init();
+
+const customFonts: FontSource[] = [
+  {
+    family: "Inter",
+    url: "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2",
+    weight: 600
+  }
+];
+
+const titleElement: TextElement = {
+  type: "text",
+  content: "Welcome to HTVG",
+  style: {
+    fontSize: 32,
+    fontWeight: 600,
+    fontFamily: "Inter",
+    color: "#1a1a1a"
+  }
+};
+
+const contentElement: FlexElement = {
+  type: "flex",
+  style: {
+    flexDirection: "column",
+    gap: 16,
+    padding: 32,
+    backgroundColor: "#ffffff",
+    borderRadius: 8
+  },
+  children: [
+    titleElement,
+    {
+      type: "text",
+      content: "Build beautiful SVG graphics from JSON",
+      style: {
+        fontSize: 16,
+        color: "#666666"
+      }
+    }
+  ]
+};
+
+const document: HtvgDocument = {
+  meta: {
+    width: 600,
+    fonts: customFonts
+  },
+  content: contentElement
+};
+
+const result: CompileResult = compileDocument(document);
+
+console.log(`Generated SVG: ${result.width}x${result.height}`);
+if (result.warnings.length > 0) {
+  console.warn("Warnings:", result.warnings);
+}
+```
