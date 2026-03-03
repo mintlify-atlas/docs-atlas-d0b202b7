@@ -1,0 +1,97 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "HTVG",
+  "projectDescription": "JSON element tree to SVG compiler with correct text layout powered by Rust and WASM",
+  "theme": "aspen",
+  "primaryColor": "#FF6B35",
+  "lightColor": "#FFB04F",
+  "darkColor": "#C44536",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/element-types",
+              "concepts/style-properties",
+              "concepts/layout-engine",
+              "concepts/text-rendering"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/custom-fonts",
+              "guides/examples",
+              "guides/og-images",
+              "guides/edge-runtime"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Rust API",
+            "pages": [
+              "api/rust/compile",
+              "api/rust/element",
+              "api/rust/options",
+              "api/rust/result"
+            ]
+          },
+          {
+            "group": "JavaScript API",
+            "pages": [
+              "api/js/compile",
+              "api/js/types",
+              "api/js/init"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "api/cli/commands",
+              "api/cli/options"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "JSON element tree to SVG compilation",
+    "Correct multiline text layout with Parley",
+    "Full CSS Flexbox support via Taffy",
+    "WASM support for browsers, Node.js, and edge runtimes",
+    "Custom font loading and embedding",
+    "CLI tool for batch processing",
+    "Pure SVG output with no JavaScript dependencies"
+  ],
+  "publicApiSurface": [
+    "compile(element_json, options)",
+    "compile_element(element, options)",
+    "compile_document(doc_json)",
+    "Element (Box, Flex, Text, Image)",
+    "CompileOptions",
+    "CompileResult",
+    "FontSource",
+    "HtvgDocument",
+    "compileDocument() [JS]",
+    "compile() [JS]",
+    "init() [JS]",
+    "version() [JS]",
+    "htvg compile [CLI]"
+  ]
+}
